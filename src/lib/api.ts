@@ -48,7 +48,7 @@ async function callAPI<T = unknown>(
   const payload = {
     action,
     token,
-    ...data,
+    data: data ?? {},
   };
 
   const response = await fetch(url, {
@@ -65,10 +65,6 @@ async function callAPI<T = unknown>(
 
   const result: ApiResponse<T> = await response.json();
 
-  if (result.token) {
-    setToken(result.token);
-  }
-
   return result;
 }
 
@@ -79,8 +75,8 @@ export async function login(
   password: string
 ): Promise<ApiResponse<User>> {
   const result = await callAPI<User>("login", { username, password });
-  if (result.success && result.token) {
-    setToken(result.token);
+  if (result.success && result.data?.token) {
+    setToken(result.data.token);
   }
   return result;
 }
@@ -188,7 +184,7 @@ export async function getAllMovimientos(): Promise<ApiResponse<Movimiento[]>> {
 export async function addMovimiento(
   data: Omit<Movimiento, "id">
 ): Promise<ApiResponse<Movimiento>> {
-  return callAPI<Movimiento>("addMovimiento", data);
+  return callAPI<Movimiento>("addMovimientos", data);
 }
 
 // ─── Costos ───────────────────────────────────────────────────────────────────
@@ -200,7 +196,7 @@ export async function getAllCostos(): Promise<ApiResponse<Costo[]>> {
 export async function addCosto(
   data: Omit<Costo, "id">
 ): Promise<ApiResponse<Costo>> {
-  return callAPI<Costo>("addCosto", data);
+  return callAPI<Costo>("addCostos", data);
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────

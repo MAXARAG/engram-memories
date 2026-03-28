@@ -150,4 +150,5 @@ export interface User {
   username: string;
   nombre?: string;
   rol?: string;
+  token?: string;
 }

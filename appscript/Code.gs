@@ -442,10 +442,14 @@ function especieToCode(especie) {
 
 function addAlimentacion(data) {
   try {
+    // Total KG = Kg/Animal × Cantidad
+    var kgAnimal = parseFloat(data['Kg Animal'] || 0);
+    var cantidad = parseFloat(data['Cantidad'] || 0);
+    data['Total KG'] = kgAnimal * cantidad;
+
     // Costo Total = Total KG × Costo/Kg
-    var totalKg  = parseFloat(data['Total KG']  || 0);
     var costoKg  = parseFloat(data['Costo/Kg']  || 0);
-    data['Costo Total'] = totalKg * costoKg;
+    data['Costo Total'] = data['Total KG'] * costoKg;
 
     return addRow(SHEETS.ALIMENTACION, data);
   } catch (err) {
@@ -459,6 +463,7 @@ function addAlimentacion(data) {
 
 function addFaena(data) {
   try {
+    // Server-side calculation — ignore any client-sent rendimiento
     var pesoVivo  = parseFloat(data['Peso Vivo']  || 0);
     var pesoCanal = parseFloat(data['Peso Canal'] || 0);
     if (pesoVivo > 0) {
@@ -467,9 +472,9 @@ function addFaena(data) {
       data['Rendimiento%'] = 0;
     }
 
-    // Mark animal state as Faena
+    // Mark animal state as Faenado
     if (data['ID Animal']) {
-      updateAnimal({ 'ID Animal': data['ID Animal'], 'Estado': 'En faena' });
+      updateAnimal({ 'ID Animal': data['ID Animal'], 'Estado': 'Faenado' });
     }
 
     return addRow(SHEETS.FAENA, data);

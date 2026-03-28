@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (result.success) {
           const userData: User = result.data ?? { username };
           setUser(userData);
-          setToken(result.token ?? getToken());
+          setToken(result.data?.token ?? getToken());
           localStorage.setItem("vaniapp_user", JSON.stringify(userData));
           setIsLoading(false);
           return { success: true };
