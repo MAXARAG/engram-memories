@@ -24,6 +24,7 @@ import type {
   DashboardAlert,
   DashboardDetails,
   RecentEventType,
+  RecentEvent,
 } from "@/types/database";
 
 function normalizeAnimalError(error: { code?: string; message?: string } | null): Error {
