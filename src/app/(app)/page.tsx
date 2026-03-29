@@ -107,19 +107,23 @@ function EventRow({ event }: { event: DashboardDetails["recentEvents"][0] }) {
     alimentacion: "/alimentacion", sanidad: "/sanidad", costo: "/costos",
     reproduccion: "/reproduccion", destete: "/destete", faena: "/faena", movimiento: "/movimientos",
   };
+  const ACTION_ICONS: Record<string, string> = { insert: "➕", update: "✏️", delete: "🗑️" };
+  const actionIcon = event.action ? (ACTION_ICONS[event.action] ?? "•") : "•";
   return (
     <Link href={hrefMap[event.type]} style={{ textDecoration: "none" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.625rem 0", borderBottom: "1px solid var(--color-border)" }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", padding: "0.5rem 0", borderBottom: "1px solid var(--color-border)" }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, marginTop: "0.35rem" }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: "0.8125rem", color: "var(--color-text)", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {event.label}
+          <p style={{ fontSize: "0.8125rem", color: "var(--color-text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {actionIcon} {event.label}
           </p>
-          {event.detail && (
-            <p style={{ fontSize: "0.71875rem", color: "var(--color-text-muted)", marginTop: "0.1rem" }}>{event.detail}</p>
+          {event.actor && (
+            <p style={{ fontSize: "0.6875rem", color: "var(--color-text-muted)", marginTop: "0.15rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              👤 {event.actor}
+            </p>
           )}
         </div>
-        <span style={{ fontSize: "0.6875rem", color: "var(--color-text-muted)", flexShrink: 0, fontWeight: 500 }}>
+        <span style={{ fontSize: "0.6875rem", color: "var(--color-text-muted)", flexShrink: 0, fontWeight: 500, paddingTop: "0.1rem" }}>
           {formatDate(event.date)}
         </span>
       </div>

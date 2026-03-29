@@ -590,33 +590,91 @@ export async function getDashboardDetails(): Promise<DashboardDetails> {
     return (a.daysLeft ?? 99) - (b.daysLeft ?? 99);
   });
 
-  // Recent events — merge and sort last 7 days
-  const recentEvents = [
-    ...(alimentRes.data ?? []).map((a) => ({
-      type: "alimentacion" as const,
-      date: a.fecha,
-      label: `${a.especie} — ${a.racion}`,
-      detail: a.total_kg ? `${a.total_kg.toLocaleString("es-AR")} kg` : undefined,
-    })),
-    ...(costosRes.data ?? []).map((c) => ({
-      type: "costo" as const,
-      date: c.fecha,
-      label: `${c.categoria} — ${c.concepto}`,
-      detail: `$${(c.monto ?? 0).toLocaleString("es-AR")}`,
-    })),
-    ...(desteteRes.data ?? []).map((d) => ({
-      type: "destete" as const,
-      date: d.fecha,
-      label: `Destete — ${d.especie}`,
-      detail: d.n_crias ? `${d.n_crias} cría${d.n_crias !== 1 ? "s" : ""}` : undefined,
-    })),
-    ...(faenaRes.data ?? []).map((f) => ({
-      type: "faena" as const,
-      date: f.fecha,
-      label: `Faena — ${f.especie}`,
-      detail: f.peso_canal ? `${f.peso_canal} kg en vara` : undefined,
-    })),
-  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+  // Recent activity from audit_logs (has who+what+when)
+  const auditRes = await (supabase as any)
+    .from("audit_logs")
+    .select("id, action, actor_email, target_email, description, created_at")
+    .order("created_at", { ascending: false })
+    .limit(15);
+
+  const TABLE_TO_TYPE: Record<string, RecentEventType> = {
+    alimentacion: "alimentacion",
+    sanidad: "sanidad",
+    costos: "costo",
+    reproduccion: "reproduccion",
+    destete: "destete",
+    faena: "faena",
+    movimientos: "movimiento",
+    animales: "movimiento",
+    stock_alimento: "alimentacion",
+  };
+
+  const TABLE_LABEL: Record<string, string> = {
+    alimentacion: "Alimentación",
+    sanidad: "Sanidad",
+    costos: "Costos",
+    reproduccion: "Reproducción",
+    destete: "Destete",
+    faena: "Faena",
+    movimientos: "Movimientos",
+    animales: "Animales",
+    stock_alimento: "Stock de alimentos",
+  };
+
+  const ACTION_LABEL: Record<string, string> = {
+    insert: "Registro nuevo",
+    update: "Modificación",
+    delete: "Eliminación",
+    create_user: "Usuario creado",
+    delete_user: "Usuario eliminado",
+    update_role: "Rol actualizado",
+  };
+
+  const auditLogs: any[] = auditRes.data ?? [];
+
+  // Fallback to per-table query if audit_logs is empty (before triggers were set)
+  const recentEvents: RecentEvent[] = auditLogs.length > 0
+    ? auditLogs.map((log: any) => {
+        const tableName: string = log.target_email ?? "";
+        const evType: RecentEventType = TABLE_TO_TYPE[tableName] ?? "movimiento";
+        const modLabel = TABLE_LABEL[tableName] ?? tableName;
+        const actionLabel = ACTION_LABEL[log.action] ?? log.action;
+        const actorName = log.actor_email ? log.actor_email.split("@")[0] : "Sistema";
+        return {
+          type: evType,
+          date: log.created_at.split("T")[0],
+          label: `${actionLabel} en ${modLabel}`,
+          detail: log.description,
+          actor: actorName,
+          action: log.action,
+        };
+      })
+    : [
+        ...(alimentRes.data ?? []).map((a) => ({
+          type: "alimentacion" as const,
+          date: a.fecha,
+          label: `Alimentación — ${a.especie}`,
+          detail: `${a.racion} · ${a.total_kg?.toLocaleString("es-AR")} kg`,
+        })),
+        ...(costosRes.data ?? []).map((c) => ({
+          type: "costo" as const,
+          date: c.fecha,
+          label: `Costos — ${c.categoria}`,
+          detail: c.concepto,
+        })),
+        ...(desteteRes.data ?? []).map((d) => ({
+          type: "destete" as const,
+          date: d.fecha,
+          label: `Destete — ${d.especie}`,
+          detail: d.n_crias ? `${d.n_crias} cría${d.n_crias !== 1 ? "s" : ""}` : undefined,
+        })),
+        ...(faenaRes.data ?? []).map((f) => ({
+          type: "faena" as const,
+          date: f.fecha,
+          label: `Faena — ${f.especie}`,
+          detail: f.peso_canal ? `${f.peso_canal} kg en vara` : undefined,
+        })),
+      ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
 
   return { alerts: alerts.slice(0, 12), recentEvents };
 }

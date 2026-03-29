@@ -22,17 +22,20 @@ import {
 
 // ─── Nav Items ─────────────────────────────────────────────────────────────────
 
-const navItems = [
-  { href: "/",              label: "Dashboard",    icon: LayoutDashboard },
-  { href: "/animales",      label: "Animales",     icon: CowIcon         },
-  { href: "/alimentacion",  label: "Alimentación", icon: Wheat           },
-  { href: "/sanidad",       label: "Sanidad",      icon: Syringe         },
-  { href: "/reproduccion",  label: "Reproducción", icon: Heart           },
-  { href: "/destete",       label: "Destete",      icon: CalfIcon        },
-  { href: "/faena",         label: "Faena",        icon: Scissors        },
-  { href: "/movimientos",   label: "Movimientos",  icon: ArrowLeftRight  },
-  { href: "/costos",        label: "Costos",       icon: DollarSign      },
-  { href: "/estadisticas",  label: "Estadísticas", icon: BarChart3       },
+const topItems = [
+  { href: "/",             label: "Dashboard",    icon: LayoutDashboard },
+  { href: "/animales",     label: "Animales",     icon: CowIcon         },
+  { href: "/estadisticas", label: "Estadísticas", icon: BarChart3       },
+];
+
+const moduleItems = [
+  { href: "/alimentacion", label: "Alimentación", icon: Wheat          },
+  { href: "/sanidad",      label: "Sanidad",      icon: Syringe        },
+  { href: "/reproduccion", label: "Reproducción", icon: Heart          },
+  { href: "/destete",      label: "Destete",      icon: CalfIcon       },
+  { href: "/faena",        label: "Faena",        icon: Scissors       },
+  { href: "/movimientos",  label: "Movimientos",  icon: ArrowLeftRight },
+  { href: "/costos",       label: "Costos",       icon: DollarSign     },
 ];
 
 const ADMIN_EMAIL = 'ezpeleta.juan@gmail.com';
@@ -131,10 +134,25 @@ export default function Sidebar({ drawerOpen = false, onClose }: SidebarProps) {
           zIndex: 1,
         }}
       >
-        {/* Section label */}
+        {/* Top items (no label) */}
+        {topItems.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={`sidebar-nav-item${isActive(href) ? " active" : ""}`}
+          >
+            <Icon size={17} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{label}</span>
+            {isActive(href) && (
+              <ChevronRight size={14} style={{ opacity: 0.5 }} />
+            )}
+          </Link>
+        ))}
+
+        {/* Módulos section label */}
         <div
           style={{
-            padding: "0.25rem 1.75rem 0.5rem",
+            padding: "0.75rem 1.75rem 0.35rem",
             fontSize: "0.6875rem",
             fontWeight: 600,
             letterSpacing: "0.1em",
@@ -145,7 +163,7 @@ export default function Sidebar({ drawerOpen = false, onClose }: SidebarProps) {
           Módulos
         </div>
 
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {moduleItems.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}

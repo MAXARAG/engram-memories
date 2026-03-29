@@ -466,6 +466,8 @@ export interface RecentEvent {
   date: string;
   label: string;
   detail?: string;
+  actor?: string;
+  action?: string;
 }
 
 export interface DashboardDetails {
