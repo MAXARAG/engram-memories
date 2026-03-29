@@ -24,7 +24,7 @@ CREATE TABLE audit_logs (
   actor_email text,
   action text NOT NULL,
   target_uid uuid,
-+  target_email text,
+  target_email text,
   description text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
