@@ -21,6 +21,8 @@ import type {
   StockAlimentoInsert,
   StockAlimentoUpdate,
   Stats,
+  DashboardAlert,
+  DashboardDetails,
 } from "@/types/database";
 
 function normalizeAnimalError(error: { code?: string; message?: string } | null): Error {
@@ -515,4 +517,106 @@ export async function getStats(): Promise<Stats> {
     alimentacionCostoMes,
     animalesEnRetiro,
   };
+}
+
+// ─── Dashboard daily briefing ──────────────────────────────────────────────────
+
+export async function getDashboardDetails(): Promise<DashboardDetails> {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  const hace7 = new Date(hoy);
+  hace7.setDate(hoy.getDate() - 7);
+  const hace7str = hace7.toISOString().split("T")[0];
+  const hoyStr   = hoy.toISOString().split("T")[0];
+
+  const [sanidadRes, reproRes, alimentRes, costosRes, desteteRes, faenaRes] = await Promise.all([
+    supabase.from("sanidad").select("id, fecha, especie, tratamiento, tipo, dias_retiro").gt("dias_retiro", 0),
+    supabase.from("reproduccion").select("id, especie, fecha_parto").not("fecha_parto", "is", null).gte("fecha_parto", hoyStr),
+    supabase.from("alimentacion").select("id, fecha, especie, racion, total_kg").gte("fecha", hace7str).order("fecha", { ascending: false }).limit(6),
+    supabase.from("costos").select("id, fecha, categoria, concepto, monto").gte("fecha", hace7str).order("fecha", { ascending: false }).limit(6),
+    supabase.from("destete").select("id, fecha, especie, n_crias").gte("fecha", hace7str).order("fecha", { ascending: false }).limit(4),
+    supabase.from("faena").select("id, fecha, especie, peso_canal").gte("fecha", hace7str).order("fecha", { ascending: false }).limit(4),
+  ]);
+
+  const alerts: DashboardAlert[] = [];
+
+  // Retiro alerts — show when retiro ends in 0–7 days
+  for (const s of sanidadRes.data ?? []) {
+    if (!s.dias_retiro || s.dias_retiro <= 0) continue;
+    const fin = new Date(s.fecha + "T12:00:00");
+    fin.setDate(fin.getDate() + s.dias_retiro);
+    fin.setHours(0, 0, 0, 0);
+    const daysLeft = Math.round((fin.getTime() - hoy.getTime()) / 86_400_000);
+
+    if (daysLeft >= 0 && daysLeft <= 7) {
+      alerts.push({
+        type: daysLeft === 0 ? "retiro_termina" : "retiro_activo",
+        urgency: daysLeft === 0 ? "critical" : daysLeft <= 2 ? "warning" : "info",
+        title: daysLeft === 0
+          ? "Retiro termina hoy"
+          : `Retiro en ${daysLeft} día${daysLeft !== 1 ? "s" : ""}`,
+        detail: `${s.especie} — ${s.tratamiento}`,
+        daysLeft,
+        href: "/sanidad",
+      });
+    }
+  }
+
+  // Parto alerts — show when parto is in 0–14 days
+  for (const r of reproRes.data ?? []) {
+    if (!r.fecha_parto) continue;
+    const fp = new Date(r.fecha_parto + "T12:00:00");
+    fp.setHours(0, 0, 0, 0);
+    const daysLeft = Math.round((fp.getTime() - hoy.getTime()) / 86_400_000);
+
+    if (daysLeft >= 0 && daysLeft <= 14) {
+      alerts.push({
+        type: "parto_proximo",
+        urgency: daysLeft <= 1 ? "critical" : daysLeft <= 5 ? "warning" : "info",
+        title: daysLeft === 0 ? "Parto hoy" : `Parto en ${daysLeft} día${daysLeft !== 1 ? "s" : ""}`,
+        detail: r.especie,
+        daysLeft,
+        href: "/reproduccion",
+      });
+    }
+  }
+
+  // Sort: urgency first, then daysLeft
+  const urgencyOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+  alerts.sort((a, b) => {
+    const uDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+    if (uDiff !== 0) return uDiff;
+    return (a.daysLeft ?? 99) - (b.daysLeft ?? 99);
+  });
+
+  // Recent events — merge and sort last 7 days
+  const recentEvents = [
+    ...(alimentRes.data ?? []).map((a) => ({
+      type: "alimentacion" as const,
+      date: a.fecha,
+      label: `${a.especie} — ${a.racion}`,
+      detail: a.total_kg ? `${a.total_kg.toLocaleString("es-AR")} kg` : undefined,
+    })),
+    ...(costosRes.data ?? []).map((c) => ({
+      type: "costo" as const,
+      date: c.fecha,
+      label: `${c.categoria} — ${c.concepto}`,
+      detail: `$${(c.monto ?? 0).toLocaleString("es-AR")}`,
+    })),
+    ...(desteteRes.data ?? []).map((d) => ({
+      type: "destete" as const,
+      date: d.fecha,
+      label: `Destete — ${d.especie}`,
+      detail: d.n_crias ? `${d.n_crias} cría${d.n_crias !== 1 ? "s" : ""}` : undefined,
+    })),
+    ...(faenaRes.data ?? []).map((f) => ({
+      type: "faena" as const,
+      date: f.fecha,
+      label: `Faena — ${f.especie}`,
+      detail: f.peso_canal ? `${f.peso_canal} kg en vara` : undefined,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+
+  return { alerts: alerts.slice(0, 12), recentEvents };
 }

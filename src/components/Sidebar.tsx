@@ -17,20 +17,22 @@ import {
   Leaf,
   ChevronRight,
   X,
+  BarChart3,
 } from "lucide-react";
 
 // ─── Nav Items ─────────────────────────────────────────────────────────────────
 
 const navItems = [
-  { href: "/",            label: "Dashboard",    icon: LayoutDashboard },
-  { href: "/animales",    label: "Animales",     icon: CowIcon         },
-  { href: "/alimentacion",label: "Alimentación", icon: Wheat           },
-  { href: "/sanidad",     label: "Sanidad",      icon: Syringe         },
-  { href: "/reproduccion",label: "Reproducción", icon: Heart           },
-  { href: "/destete",     label: "Destete",      icon: CalfIcon        },
-  { href: "/faena",       label: "Faena",        icon: Scissors        },
-  { href: "/movimientos", label: "Movimientos",  icon: ArrowLeftRight  },
-  { href: "/costos",      label: "Costos",       icon: DollarSign      },
+  { href: "/",              label: "Dashboard",    icon: LayoutDashboard },
+  { href: "/animales",      label: "Animales",     icon: CowIcon         },
+  { href: "/alimentacion",  label: "Alimentación", icon: Wheat           },
+  { href: "/sanidad",       label: "Sanidad",      icon: Syringe         },
+  { href: "/reproduccion",  label: "Reproducción", icon: Heart           },
+  { href: "/destete",       label: "Destete",      icon: CalfIcon        },
+  { href: "/faena",         label: "Faena",        icon: Scissors        },
+  { href: "/movimientos",   label: "Movimientos",  icon: ArrowLeftRight  },
+  { href: "/costos",        label: "Costos",       icon: DollarSign      },
+  { href: "/estadisticas",  label: "Estadísticas", icon: BarChart3       },
 ];
 
 // ─── Component ─────────────────────────────────────────────────────────────────

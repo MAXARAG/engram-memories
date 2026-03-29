@@ -742,24 +742,47 @@ p { margin: 0; }
     transform: translateX(0);
   }
 
-  /* app-shell stacks vertically; sidebar is out of flow */
+  /* app-shell: column, full height, no horizontal overflow */
   .app-shell {
     flex-direction: column;
+    height: 100dvh;
+    height: 100vh;
+    overflow: hidden;
   }
 
+  /* app-main fills remaining height below topbar */
   .app-main {
+    flex: 1;
+    height: 0; /* forces flex child to respect parent height */
+    overflow-y: auto;
+    overflow-x: hidden;
     padding-bottom: 5rem;
+  }
+
+  /* Page title smaller on mobile */
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.8125rem;
   }
 
   .page-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.75rem;
+    margin-bottom: 1.25rem;
   }
 
   .page-header .btn {
     width: 100%;
     justify-content: center;
+  }
+
+  /* Record cards: single column on small mobile */
+  .record-card-body {
+    grid-template-columns: 1fr 1fr;
   }
 
   /* Dashboard grid on mobile */
@@ -770,11 +793,34 @@ p { margin: 0; }
   .dashboard-bottom {
     grid-template-columns: 1fr !important;
   }
+
+  /* Section headings */
+  h2 { font-size: 1rem; }
+
+  /* Tabs overflow scroll on mobile */
+  .tab-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
 }
 
 @media (max-width: 480px) {
   .dashboard-stats {
     grid-template-columns: 1fr !important;
+  }
+
+  .module-page {
+    padding: 0.75rem;
+  }
+
+  .page-title {
+    font-size: 1.125rem;
+  }
+
+  .record-card-body {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -799,14 +845,15 @@ p { margin: 0; }
 /* ─── Module Page Container ───────────────────────────────────────────────────── */
 
 .module-page {
-  padding: 2rem;
+  padding: 1.75rem 2rem;
   max-width: 1400px;
   margin: 0 auto;
+  width: 100%;
 }
 
 @media (max-width: 768px) {
   .module-page {
-    padding: 1rem;
+    padding: 1rem 0.875rem;
   }
 }
 
@@ -878,4 +925,20 @@ p { margin: 0; }
 @keyframes shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* ─── Print Styles ────────────────────────────────────────────────────────────── */
+
+@media print {
+  .sidebar,
+  .mobile-topbar,
+  .drawer-overlay,
+  .btn,
+  .page-header .btn { display: none !important; }
+
+  .app-shell { display: block; }
+  .app-main  { height: auto; overflow: visible; }
+  .module-page { padding: 0; max-width: 100%; }
+
+  body { background: white; color: black; }
 }

@@ -448,3 +448,28 @@ export interface Stats {
   animalesEnRetiro: number;
 }
 
+// ─── Dashboard daily briefing ─────────────────────────────────────────────────
+
+export interface DashboardAlert {
+  type: "retiro_termina" | "retiro_activo" | "parto_proximo";
+  urgency: "critical" | "warning" | "info";
+  title: string;
+  detail: string;
+  daysLeft?: number;
+  href: string;
+}
+
+export type RecentEventType = "alimentacion" | "sanidad" | "costo" | "reproduccion" | "destete" | "faena" | "movimiento";
+
+export interface RecentEvent {
+  type: RecentEventType;
+  date: string;
+  label: string;
+  detail?: string;
+}
+
+export interface DashboardDetails {
+  alerts: DashboardAlert[];
+  recentEvents: RecentEvent[];
+}
+

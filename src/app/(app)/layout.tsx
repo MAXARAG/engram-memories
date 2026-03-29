@@ -7,15 +7,16 @@ import Sidebar from "@/components/Sidebar";
 import { Menu, X } from "lucide-react";
 
 const ROUTE_TITLES: Record<string, string> = {
-  "/":             "Dashboard",
-  "/animales":     "Animales",
-  "/alimentacion": "Alimentación",
-  "/sanidad":      "Sanidad",
-  "/reproduccion": "Reproducción",
-  "/destete":      "Destete",
-  "/faena":        "Faena",
-  "/movimientos":  "Movimientos",
-  "/costos":       "Costos",
+  "/":              "Dashboard",
+  "/animales":      "Animales",
+  "/alimentacion":  "Alimentación",
+  "/sanidad":       "Sanidad",
+  "/reproduccion":  "Reproducción",
+  "/destete":       "Destete",
+  "/faena":         "Faena",
+  "/movimientos":   "Movimientos",
+  "/costos":        "Costos",
+  "/estadisticas":  "Estadísticas",
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -87,9 +88,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <main className="app-main">
-          <div style={{ padding: "2rem 2.5rem", maxWidth: 1400, margin: "0 auto" }}>
-            {children}
-          </div>
+          {children}
         </main>
       </div>
     </div>
