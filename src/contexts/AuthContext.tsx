@@ -35,14 +35,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Restaurar sesión existente al montar
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-    });
-
-    // Escuchar cambios de auth state (login, logout, refresh)
+    // onAuthStateChange dispara INITIAL_SESSION al montar con el estado real validado.
+    // NO usar getSession() — devuelve caché local sin validar el token, causando
+    // un flash del dashboard si la sesión está expirada.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
