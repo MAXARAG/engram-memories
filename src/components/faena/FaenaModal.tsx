@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { findAnimalByIdentifier } from "@/lib/animalReferences";
 import { X, Scissors, AlertTriangle, Info, ShieldAlert } from "lucide-react";
-import type { Faena, Sanidad } from "@/types";
+import type { AnimalRow, FaenaRow, FaenaInsert, SanidadRow } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -10,38 +11,24 @@ function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-function toApiDate(isoDate: string): string {
-  if (!isoDate) return "";
-  const [y, m, d] = isoDate.split("-");
-  return `${d}/${m}/${y}`;
-}
-
-function parseDMY(str: string): Date | null {
-  const parts = str?.split("/");
-  if (parts?.length !== 3) return null;
-  const [d, m, y] = parts.map(Number);
-  if (!d || !m || !y) return null;
-  return new Date(y, m - 1, d, 12, 0, 0);
-}
-
 /** Verifica si un registro de sanidad tiene retiro activo hoy */
-function tieneRetiroActivo(registro: Sanidad): boolean {
-  if (!registro.diasRetiro || registro.diasRetiro <= 0) return false;
-  const base = parseDMY(registro.fecha);
-  if (!base) return false;
+function tieneRetiroActivo(registro: SanidadRow): boolean {
+  if (!registro.dias_retiro || registro.dias_retiro <= 0) return false;
+  const base = new Date(registro.fecha + "T12:00:00");
+  if (isNaN(base.getTime())) return false;
   const fin = new Date(base);
-  fin.setDate(fin.getDate() + registro.diasRetiro);
+  fin.setDate(fin.getDate() + registro.dias_retiro);
   const hoy = new Date();
   hoy.setHours(12, 0, 0, 0);
   return fin >= hoy;
 }
 
 /** Fecha fin de retiro legible */
-function fechaFinRetiroStr(registro: Sanidad): string {
-  const base = parseDMY(registro.fecha);
-  if (!base) return "";
+function fechaFinRetiroStr(registro: SanidadRow): string {
+  const base = new Date(registro.fecha + "T12:00:00");
+  if (isNaN(base.getTime())) return "";
   const fin = new Date(base);
-  fin.setDate(fin.getDate() + registro.diasRetiro);
+  fin.setDate(fin.getDate() + registro.dias_retiro);
   return fin.toLocaleDateString("es-AR", {
     day: "2-digit",
     month: "long",
@@ -74,8 +61,10 @@ const NIVEL_COLORS: Record<NonNullable<RendimientoNivel>, { bg: string; border: 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FaenaModalProps {
+  animals: AnimalRow[];
+  initialData?: FaenaRow | null;
   onClose: () => void;
-  onSaved: (record: Faena) => void;
+  onSaved: (record: FaenaRow) => void;
 }
 
 interface FormState {
@@ -87,23 +76,32 @@ interface FormState {
   observaciones: string;
 }
 
+function createInitialState(
+  record: FaenaRow | null | undefined,
+  animals: AnimalRow[]
+): FormState {
+  const matchedAnimal = animals.find((animal) => animal.id === record?.animal_id);
+
+  return {
+    fecha: record?.fecha ?? todayISO(),
+    idAnimal: matchedAnimal?.identificador ?? "",
+    especie: record?.especie ?? matchedAnimal?.especie ?? "",
+    pesoVivo: record ? String(record.peso_vivo) : "",
+    pesoCanal: record ? String(record.peso_canal) : "",
+    observaciones: record?.observaciones ?? "",
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
-  const [form, setForm] = useState<FormState>({
-    fecha: todayISO(),
-    idAnimal: "",
-    especie: "",
-    pesoVivo: "",
-    pesoCanal: "",
-    observaciones: "",
-  });
+export function FaenaModal({ animals, initialData = null, onClose, onSaved }: FaenaModalProps) {
+  const [form, setForm] = useState<FormState>(createInitialState(initialData, animals));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Retiro sanitario
-  const [retiroActivo, setRetiroActivo] = useState<Sanidad | null>(null);
+  const [retiroActivo, setRetiroActivo] = useState<SanidadRow | null>(null);
   const [checkingRetiro, setCheckingRetiro] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -123,43 +121,57 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  useEffect(() => {
+    setForm(createInitialState(initialData, animals));
+    setRetiroActivo(null);
+    setError(null);
+  }, [initialData, animals]);
+
   // Debounce: verificar retiro al escribir idAnimal
   const checkRetiro = useCallback(async (idAnimal: string) => {
-    if (!idAnimal.trim()) {
+    const matchedAnimal = findAnimalByIdentifier(animals, idAnimal);
+    if (!matchedAnimal) {
       setRetiroActivo(null);
       return;
     }
     setCheckingRetiro(true);
     try {
-      const { getAllSanidad } = await import("@/lib/api");
-      const result = await getAllSanidad();
-      if (result.success && result.data) {
-        const registros = result.data.filter(
+      const { getSanidad } = await import("@/lib/api");
+      const registrosSanidad = await getSanidad();
+      const registros = registrosSanidad.filter(
           (r) =>
-            r.idAnimal.trim().toLowerCase() ===
-              idAnimal.trim().toLowerCase() && tieneRetiroActivo(r)
+            r.animal_id === matchedAnimal.id && tieneRetiroActivo(r)
         );
         // El más reciente
         const activo = registros.sort((a, b) => {
-          const da = parseDMY(a.fecha);
-          const db = parseDMY(b.fecha);
-          if (!da || !db) return 0;
+          const da = new Date(a.fecha + "T12:00:00");
+          const db = new Date(b.fecha + "T12:00:00");
           return db.getTime() - da.getTime();
         })[0] ?? null;
         setRetiroActivo(activo);
-      }
     } catch {
       // silencioso — no queremos interrumpir el flujo del usuario
     } finally {
       setCheckingRetiro(false);
     }
-  }, []);
+  }, [animals]);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      if (name !== "idAnimal") {
+        return { ...prev, [name]: value };
+      }
+
+      const matchedAnimal = findAnimalByIdentifier(animals, value);
+      return {
+        ...prev,
+        idAnimal: value,
+        especie: matchedAnimal?.especie ?? prev.especie,
+      };
+    });
     setError(null);
 
     if (name === "idAnimal") {
@@ -175,6 +187,12 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
     if (!form.fecha) return setError("Ingresá la fecha.");
     if (!form.idAnimal.trim()) return setError("Ingresá el ID del animal.");
     if (!form.especie.trim()) return setError("Ingresá la especie.");
+
+    const matchedAnimal = findAnimalByIdentifier(animals, form.idAnimal);
+    if (!matchedAnimal) {
+      return setError("El identificador del animal no existe. Seleccioná uno válido.");
+    }
+
     if (retiroActivo)
       return setError("No se puede faenar: animal en período de retiro sanitario.");
     if (!form.pesoVivo || isNaN(pesoVivoNum) || pesoVivoNum <= 0)
@@ -186,25 +204,21 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
 
     setLoading(true);
     try {
-      const { addFaena } = await import("@/lib/api");
+      const { addFaena, updateFaena } = await import("@/lib/api");
 
-      const payload: Omit<Faena, "id"> = {
-        fecha: toApiDate(form.fecha),
-        idAnimal: form.idAnimal.trim(),
-        especie: form.especie.trim(),
-        pesoVivo: pesoVivoNum,
-        pesoCanal: pesoCanalNum,
-        rendimiento: 0, // calculated by backend
-        observaciones: form.observaciones.trim(),
+      const payload: FaenaInsert = {
+        fecha: form.fecha,
+        animal_id: matchedAnimal.id,
+        especie: form.especie.trim() || matchedAnimal.especie,
+        peso_vivo: pesoVivoNum,
+        peso_canal: pesoCanalNum,
+        observaciones: form.observaciones.trim() || null,
       };
 
-      const result = await addFaena(payload);
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar la faena.");
-      }
-
-      onSaved(result.data);
+      const saved = initialData
+        ? await updateFaena(initialData.id, payload)
+        : await addFaena(payload);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -214,17 +228,18 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{
         background: "rgba(30, 61, 26, 0.65)",
         backdropFilter: "blur(4px)",
         overflowY: "auto",
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       {/* Panel */}
       <div
-        className="w-full max-w-xl animate-fade-in"
+        className="w-full max-w-xl animate-fade-in modal-content"
         style={{
           background: "var(--color-bg-card)",
           borderRadius: "var(--radius-xl)",
@@ -265,7 +280,7 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
                   color: "#fff",
                 }}
               >
-                Registrar Faena
+                {initialData ? "Editar Faena" : "Registrar Faena"}
               </h2>
               <p
                 style={{
@@ -274,7 +289,9 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
                   marginTop: "1px",
                 }}
               >
-                Completá los datos del animal y los pesos de faena
+                {initialData
+                  ? "Actualizá los datos del animal y los pesos de faena"
+                  : "Completá los datos del animal y los pesos de faena"}
               </p>
             </div>
           </div>
@@ -339,7 +356,15 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
                       ? { borderColor: "#dc2626", boxShadow: "0 0 0 3px rgba(220,38,38,0.12)" }
                       : undefined
                   }
+                  list="fm-idAnimal-options"
                 />
+                <datalist id="fm-idAnimal-options">
+                  {animals.map((animal) => (
+                    <option key={animal.id} value={animal.identificador}>
+                      {`${animal.especie} · ${animal.categoria}`}
+                    </option>
+                  ))}
+                </datalist>
                 {checkingRetiro && (
                   <span
                     style={{
@@ -358,6 +383,15 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
                   />
                 )}
               </div>
+              {(() => {
+                const matchedAnimal = findAnimalByIdentifier(animals, form.idAnimal);
+                if (!matchedAnimal) return null;
+                return (
+                  <p style={{ marginTop: "0.375rem", fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                    {matchedAnimal.especie} · {matchedAnimal.categoria}
+                  </p>
+                );
+              })()}
             </div>
           </div>
 
@@ -407,7 +441,7 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
                 </p>
                 <p style={{ fontSize: "0.8125rem", color: "#7f1d1d" }}>
                   <strong>{retiroActivo.producto}</strong> ·{" "}
-                  {retiroActivo.tratamiento} · {retiroActivo.diasRetiro} días
+                  {retiroActivo.tratamiento} · {retiroActivo.dias_retiro} días
                 </p>
                 <p style={{ fontSize: "0.8125rem", color: "#991b1b", marginTop: "2px" }}>
                   No habilitar faena hasta el{" "}
@@ -657,7 +691,7 @@ export function FaenaModal({ onClose, onSaved }: FaenaModalProps) {
                   Guardando…
                 </span>
               ) : (
-                "Registrar Faena"
+                initialData ? "Guardar cambios" : "Registrar Faena"
               )}
             </button>
           </div>

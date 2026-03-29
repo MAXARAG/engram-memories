@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { X, Wheat, Calculator } from "lucide-react";
-import type { Alimentacion } from "@/types";
+import type { AlimentacionRow, AlimentacionInsert } from "@/types/database";
 
 interface AlimentacionModalProps {
+  initialData?: AlimentacionRow | null;
   onClose: () => void;
-  onSaved: (record: Alimentacion) => void;
+  onSaved: (record: AlimentacionRow) => void;
 }
 
 interface FormState {
@@ -24,15 +25,21 @@ const today = (): string => {
   return d.toISOString().split("T")[0]; // YYYY-MM-DD for date input
 };
 
-export function AlimentacionModal({ onClose, onSaved }: AlimentacionModalProps) {
+function createInitialState(record?: AlimentacionRow | null): FormState {
+  return {
+    fecha: record?.fecha ?? today(),
+    especie: record?.especie ?? "",
+    categoria: record?.categoria ?? "",
+    racion: record?.racion ?? "",
+    kgAnimal: record ? String(record.kg_animal) : "",
+    cantidad: record ? String(record.cantidad) : "",
+    costoKg: record ? String(record.costo_kg) : "",
+  };
+}
+
+export function AlimentacionModal({ initialData = null, onClose, onSaved }: AlimentacionModalProps) {
   const [form, setForm] = useState<FormState>({
-    fecha: today(),
-    especie: "",
-    categoria: "",
-    racion: "",
-    kgAnimal: "",
-    cantidad: "",
-    costoKg: "",
+    ...createInitialState(initialData),
   });
 
   const [loading, setLoading] = useState(false);
@@ -54,16 +61,14 @@ export function AlimentacionModal({ onClose, onSaved }: AlimentacionModalProps) 
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  useEffect(() => {
+    setForm(createInitialState(initialData));
+    setError(null);
+  }, [initialData]);
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     setError(null);
-  }
-
-  // Convert YYYY-MM-DD → DD/MM/YYYY for the API
-  function toApiDate(dateStr: string): string {
-    if (!dateStr) return "";
-    const [y, m, d] = dateStr.split("-");
-    return `${d}/${m}/${y}`;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -86,28 +91,24 @@ export function AlimentacionModal({ onClose, onSaved }: AlimentacionModalProps) 
 
     setLoading(true);
     try {
-      // Lazy import to avoid loading the full API on every render
-      const { addAlimentacion } = await import("@/lib/api");
+      const { addAlimentacion, updateAlimentacion } = await import("@/lib/api");
 
-      const payload: Omit<Alimentacion, "id"> = {
-        fecha: toApiDate(form.fecha),
+      const payload: AlimentacionInsert = {
+        fecha: form.fecha,
         especie: form.especie.trim(),
         categoria: form.categoria.trim(),
         racion: form.racion.trim(),
-        kgAnimal,
+        kg_animal: kgAnimal,
         cantidad,
-        costoKg,
-        totalKg: kgAnimal * cantidad,       // backend recalculates
-        costoTotal: kgAnimal * cantidad * costoKg, // backend recalculates
+        costo_kg: costoKg,
+        total_kg: kgAnimal * cantidad,
+        costo_total: kgAnimal * cantidad * costoKg,
       };
 
-      const result = await addAlimentacion(payload);
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar la carga.");
-      }
-
-      onSaved(result.data);
+      const saved = initialData
+        ? await updateAlimentacion(initialData.id, payload)
+        : await addAlimentacion(payload);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -118,13 +119,14 @@ export function AlimentacionModal({ onClose, onSaved }: AlimentacionModalProps) 
   return (
     /* Backdrop */
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{ background: "rgba(30, 61, 26, 0.55)", backdropFilter: "blur(4px)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       {/* Panel */}
       <div
-        className="w-full max-w-lg animate-fade-in"
+        className="w-full max-w-lg animate-fade-in modal-content"
         style={{
           background: "var(--color-bg-card)",
           borderRadius: "var(--radius-xl)",
@@ -163,10 +165,10 @@ export function AlimentacionModal({ onClose, onSaved }: AlimentacionModalProps) 
                   color: "#fff",
                 }}
               >
-                Nueva Carga de Alimentación
+                {initialData ? "Editar Alimentación" : "Nueva Carga de Alimentación"}
               </h2>
               <p style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.65)", marginTop: "1px" }}>
-                Registrá el consumo diario de ración
+                {initialData ? "Actualizá el consumo diario de ración" : "Registrá el consumo diario de ración"}
               </p>
             </div>
           </div>
@@ -385,7 +387,7 @@ export function AlimentacionModal({ onClose, onSaved }: AlimentacionModalProps) 
                   Guardando…
                 </span>
               ) : (
-                "Registrar"
+                initialData ? "Guardar cambios" : "Registrar"
               )}
             </button>
           </div>

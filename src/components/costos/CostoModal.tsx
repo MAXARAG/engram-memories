@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, DollarSign, Building2, TrendingUp, Info, AlertCircle } from "lucide-react";
-import type { Costo, TipoCosto } from "@/types";
+import type { CostoRow, CostoInsert, TipoCosto } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -22,11 +22,7 @@ function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-function toApiDate(isoDate: string): string {
-  if (!isoDate) return "";
-  const [y, m, d] = isoDate.split("-");
-  return `${d}/${m}/${y}`;
-}
+// (date directly from ISO input)
 
 function formatMonto(value: string): string {
   const num = parseFloat(value.replace(/[^0-9.]/g, ""));
@@ -40,8 +36,9 @@ function formatMonto(value: string): string {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CostoModalProps {
+  initialData?: CostoRow | null;
   onClose: () => void;
-  onSaved: (record: Costo) => void;
+  onSaved: (record: CostoRow) => void;
 }
 
 interface FormState {
@@ -130,14 +127,20 @@ function TipoCard({ value, selected, onSelect }: TipoCardProps) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CostoModal({ onClose, onSaved }: CostoModalProps) {
+function createInitialState(record?: CostoRow | null): FormState {
+  return {
+    fecha: record?.fecha ?? todayISO(),
+    categoria: record?.categoria ?? "",
+    concepto: record?.concepto ?? "",
+    especie: record?.especie ?? "",
+    monto: record ? String(record.monto) : "",
+    tipo: record?.tipo ?? "Fijo",
+  };
+}
+
+export function CostoModal({ initialData = null, onClose, onSaved }: CostoModalProps) {
   const [form, setForm] = useState<FormState>({
-    fecha: todayISO(),
-    categoria: "",
-    concepto: "",
-    especie: "",
-    monto: "",
-    tipo: "Fijo",
+    ...createInitialState(initialData),
   });
 
   const [loading, setLoading] = useState(false);
@@ -153,6 +156,11 @@ export function CostoModal({ onClose, onSaved }: CostoModalProps) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  useEffect(() => {
+    setForm(createInitialState(initialData));
+    setError(null);
+  }, [initialData]);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -171,24 +179,21 @@ export function CostoModal({ onClose, onSaved }: CostoModalProps) {
 
     setLoading(true);
     try {
-      const { addCosto } = await import("@/lib/api");
+      const { addCosto, updateCosto } = await import("@/lib/api");
 
-      const payload: Omit<Costo, "id"> = {
-        fecha: toApiDate(form.fecha),
+      const payload: CostoInsert = {
+        fecha: form.fecha,
         categoria: form.categoria.trim(),
         concepto: form.concepto.trim(),
-        especie: form.especie.trim() || "General",
+        especie: form.especie.trim() || null,
         monto: montoNum,
         tipo: form.tipo,
       };
 
-      const result = await addCosto(payload);
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar el costo.");
-      }
-
-      onSaved(result.data);
+      const saved = initialData
+        ? await updateCosto(initialData.id, payload)
+        : await addCosto(payload);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -198,16 +203,17 @@ export function CostoModal({ onClose, onSaved }: CostoModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{
         background: "rgba(30, 61, 26, 0.6)",
         backdropFilter: "blur(4px)",
         overflowY: "auto",
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       <div
-        className="w-full max-w-xl animate-fade-in"
+        className="w-full max-w-xl animate-fade-in modal-content"
         style={{
           background: "var(--color-bg-card)",
           borderRadius: "var(--radius-xl)",
@@ -248,7 +254,7 @@ export function CostoModal({ onClose, onSaved }: CostoModalProps) {
                   color: "#fff",
                 }}
               >
-                Registrar Costo
+                {initialData ? "Editar Costo" : "Registrar Costo"}
               </h2>
               <p
                 style={{
@@ -257,7 +263,7 @@ export function CostoModal({ onClose, onSaved }: CostoModalProps) {
                   marginTop: "1px",
                 }}
               >
-                Fijo o variable, por categoría y especie
+                {initialData ? "Actualizá el costo registrado" : "Fijo o variable, por categoría y especie"}
               </p>
             </div>
           </div>
@@ -513,7 +519,7 @@ export function CostoModal({ onClose, onSaved }: CostoModalProps) {
                   Guardando…
                 </span>
               ) : (
-                "Registrar costo"
+                initialData ? "Guardar cambios" : "Registrar costo"
               )}
             </button>
           </div>

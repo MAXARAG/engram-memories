@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { CowIcon } from "@/components/icons/CowIcon";
+import { CalfIcon } from "@/components/icons/CalfIcon";
 import {
-  Beef,
   Wheat,
   Syringe,
   Heart,
-  Baby,
   Scissors,
   ArrowLeftRight,
   DollarSign,
@@ -22,11 +22,11 @@ import {
 
 const navItems = [
   { href: "/",            label: "Dashboard",    icon: LayoutDashboard },
-  { href: "/animales",    label: "Animales",     icon: Beef            },
+  { href: "/animales",    label: "Animales",     icon: CowIcon         },
   { href: "/alimentacion",label: "Alimentación", icon: Wheat           },
   { href: "/sanidad",     label: "Sanidad",      icon: Syringe         },
   { href: "/reproduccion",label: "Reproducción", icon: Heart           },
-  { href: "/destete",     label: "Destete",      icon: Baby            },
+  { href: "/destete",     label: "Destete",      icon: CalfIcon        },
   { href: "/faena",       label: "Faena",        icon: Scissors        },
   { href: "/movimientos", label: "Movimientos",  icon: ArrowLeftRight  },
   { href: "/costos",      label: "Costos",       icon: DollarSign      },
@@ -170,9 +170,7 @@ export default function Sidebar() {
               flexShrink: 0,
             }}
           >
-            {user?.nombre
-              ? user.nombre[0].toUpperCase()
-              : user?.username?.[0]?.toUpperCase() ?? "U"}
+            {((user?.user_metadata?.nombre as string | undefined)?.[0] ?? user?.email?.[0] ?? "U").toUpperCase()}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
@@ -185,18 +183,8 @@ export default function Sidebar() {
                 whiteSpace: "nowrap",
               }}
             >
-              {user?.nombre ?? user?.username ?? "Usuario"}
+              {(user?.user_metadata?.nombre as string | undefined) ?? user?.email?.split("@")[0] ?? "Usuario"}
             </div>
-            {user?.rol && (
-              <div
-                style={{
-                  fontSize: "0.6875rem",
-                  color: "rgba(197, 217, 194, 0.6)",
-                }}
-              >
-                {user.rol}
-              </div>
-            )}
           </div>
         </div>
 

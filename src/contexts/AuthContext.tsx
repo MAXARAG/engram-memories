@@ -8,17 +8,17 @@ import React, {
   useCallback,
 } from "react";
 import { useRouter } from "next/navigation";
-import { login as apiLogin, logout as apiLogout, getToken, removeToken } from "@/lib/api";
-import type { User } from "@/types";
+import { supabase } from "@/lib/supabase";
+import type { User, Session } from "@supabase/supabase-js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AuthContextValue {
   user: User | null;
-  token: string | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -30,75 +30,47 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser]       = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount: restore session from localStorage
   useEffect(() => {
-    const savedToken = getToken();
-    if (savedToken) {
-      setToken(savedToken);
-      // Restore minimal user from token (username stored separately)
-      const savedUser = localStorage.getItem("vaniapp_user");
-      if (savedUser) {
-        try {
-          setUser(JSON.parse(savedUser));
-        } catch {
-          setUser({ username: "Usuario" });
-        }
-      } else {
-        setUser({ username: "Usuario" });
+    // Restaurar sesión existente al montar
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    });
+
+    // Escuchar cambios de auth state (login, logout, refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = useCallback(
-    async (username: string, password: string) => {
-      setIsLoading(true);
-      try {
-        const result = await apiLogin(username, password);
-        if (result.success) {
-          const userData: User = result.data ?? { username };
-          setUser(userData);
-          setToken(result.data?.token ?? getToken());
-          localStorage.setItem("vaniapp_user", JSON.stringify(userData));
-          setIsLoading(false);
-          return { success: true };
-        } else {
-          setIsLoading(false);
-          return { success: false, error: result.error ?? "Credenciales inválidas" };
-        }
-      } catch (err) {
-        setIsLoading(false);
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : "Error de conexión",
-        };
-      }
-    },
-    []
-  );
+  const login = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setIsLoading(false);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }, []);
 
   const logout = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      await apiLogout();
-    } finally {
-      removeToken();
-      localStorage.removeItem("vaniapp_user");
-      setUser(null);
-      setToken(null);
-      setIsLoading(false);
-      router.push("/login");
-    }
+    await supabase.auth.signOut();
+    router.push("/login");
   }, [router]);
 
   const value: AuthContextValue = {
     user,
-    token,
-    isAuthenticated: !!token && !!user,
+    session,
+    isAuthenticated: !!session,
     isLoading,
     login,
     logout,

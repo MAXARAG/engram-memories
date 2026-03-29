@@ -2,36 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { X, Syringe, AlertTriangle, Info } from "lucide-react";
-import type { Sanidad } from "@/types";
+import { AnimalIdentifierField } from "@/components/common/AnimalIdentifierField";
+import { findAnimalByIdentifier } from "@/lib/animalReferences";
+import type { AnimalRow, SanidadRow, SanidadInsert, TipoSanidad } from "@/types/database";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TIPO_OPTIONS = [
+const TIPO_OPTIONS: TipoSanidad[] = [
   "Vacuna",
-  "Antiparasitario",
-  "Antibiótico",
-  "Vitaminas",
-  "Antiinflamatorio",
+  "Tratamiento",
+  "Desparasitación",
   "Otro",
 ] as const;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function todayISO(): string {
-  return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-}
-
-function toApiDate(isoDate: string): string {
-  if (!isoDate) return "";
-  const [y, m, d] = isoDate.split("-");
-  return `${d}/${m}/${y}`;
-}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SanidadModalProps {
+  animals: AnimalRow[];
+  initialData?: SanidadRow | null;
   onClose: () => void;
-  onSaved: (record: Sanidad) => void;
+  onSaved: (record: SanidadRow) => void;
 }
 
 interface FormState {
@@ -46,20 +36,34 @@ interface FormState {
   responsable: string;
 }
 
+const today = (): string => {
+  const d = new Date();
+  return d.toISOString().split("T")[0];
+};
+
+function createInitialState(
+  record: SanidadRow | null | undefined,
+  animals: AnimalRow[]
+): FormState {
+  const matchedAnimal = animals.find((animal) => animal.id === record?.animal_id);
+
+  return {
+    fecha: record?.fecha ?? today(),
+    idAnimal: matchedAnimal?.identificador ?? "",
+    especie: record?.especie ?? matchedAnimal?.especie ?? "",
+    tratamiento: record?.tratamiento ?? "",
+    producto: record?.producto ?? "",
+    dosis: record?.dosis ?? "",
+    tipo: record?.tipo ?? "",
+    diasRetiro: record ? String(record.dias_retiro) : "0",
+    responsable: record?.responsable ?? "",
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
-  const [form, setForm] = useState<FormState>({
-    fecha: todayISO(),
-    idAnimal: "",
-    especie: "",
-    tratamiento: "",
-    producto: "",
-    dosis: "",
-    tipo: "",
-    diasRetiro: "0",
-    responsable: "",
-  });
+export function SanidadModal({ animals, initialData = null, onClose, onSaved }: SanidadModalProps) {
+  const [form, setForm] = useState<FormState>(createInitialState(initialData, animals));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +88,28 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  useEffect(() => {
+    setForm(createInitialState(initialData, animals));
+    setError(null);
+  }, [initialData, animals]);
+
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+
+    setForm((prev) => {
+      if (name !== "idAnimal") {
+        return { ...prev, [name]: value };
+      }
+
+      const matchedAnimal = findAnimalByIdentifier(animals, value);
+      return {
+        ...prev,
+        idAnimal: value,
+        especie: matchedAnimal?.especie ?? prev.especie,
+      };
+    });
     setError(null);
   }
 
@@ -103,29 +125,31 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
     if (!form.tipo) return setError("Seleccioná el tipo de tratamiento.");
     if (isNaN(diasRetiroNum) || diasRetiroNum < 0) return setError("Los días de retiro deben ser 0 o más.");
 
+    const matchedAnimal = findAnimalByIdentifier(animals, form.idAnimal);
+    if (!matchedAnimal) {
+      return setError("El identificador del animal no existe. Seleccioná uno válido.");
+    }
+
     setLoading(true);
     try {
-      const { addSanidad } = await import("@/lib/api");
+      const { addSanidad, updateSanidad } = await import("@/lib/api");
 
-      const payload: Omit<Sanidad, "id"> = {
-        fecha: toApiDate(form.fecha),
-        idAnimal: form.idAnimal.trim(),
-        especie: form.especie.trim(),
+      const payload: SanidadInsert = {
+        fecha: form.fecha,
+        animal_id: matchedAnimal.id,
+        especie: form.especie.trim() || matchedAnimal.especie,
         tratamiento: form.tratamiento.trim(),
-        producto: form.producto.trim(),
-        dosis: form.dosis.trim(),
-        tipo: form.tipo,
-        diasRetiro: diasRetiroNum,
-        responsable: form.responsable.trim(),
+        producto: form.producto.trim() || null,
+        dosis: form.dosis.trim() || null,
+        tipo: form.tipo as TipoSanidad,
+        dias_retiro: diasRetiroNum,
+        responsable: form.responsable.trim() || null,
       };
 
-      const result = await addSanidad(payload);
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar el tratamiento.");
-      }
-
-      onSaved(result.data);
+      const saved = initialData
+        ? await updateSanidad(initialData.id, payload)
+        : await addSanidad(payload);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -135,17 +159,18 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{
         background: "rgba(30, 61, 26, 0.6)",
         backdropFilter: "blur(4px)",
         overflowY: "auto",
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       {/* Panel */}
       <div
-        className="w-full max-w-xl animate-fade-in"
+        className="w-full max-w-xl animate-fade-in modal-content"
         style={{
           background: "var(--color-bg-card)",
           borderRadius: "var(--radius-xl)",
@@ -186,7 +211,7 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
                   color: "#fff",
                 }}
               >
-                Nuevo Tratamiento Sanitario
+                {initialData ? "Editar Tratamiento Sanitario" : "Nuevo Tratamiento Sanitario"}
               </h2>
               <p
                 style={{
@@ -195,7 +220,9 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
                   marginTop: "1px",
                 }}
               >
-                Registrá el tratamiento, producto y período de retiro
+                {initialData
+                  ? "Actualizá el tratamiento, producto y período de retiro"
+                  : "Registrá el tratamiento, producto y período de retiro"}
               </p>
             </div>
           </div>
@@ -237,21 +264,16 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
                 required
               />
             </div>
-            <div>
-              <label className="label" htmlFor="sm-idAnimal">
-                ID Animal <span style={{ color: "var(--color-error)" }}>*</span>
-              </label>
-              <input
-                id="sm-idAnimal"
-                type="text"
-                name="idAnimal"
-                value={form.idAnimal}
-                onChange={handleChange}
-                className="input"
-                placeholder="Ej: BOV-0042"
-                required
-              />
-            </div>
+            <AnimalIdentifierField
+              id="sm-idAnimal"
+              name="idAnimal"
+              label="ID Animal"
+              value={form.idAnimal}
+              animals={animals}
+              onChange={handleChange}
+              placeholder="Ej: BOV-0042"
+              required
+            />
           </div>
 
           {/* Especie + Tipo */}
@@ -271,6 +293,7 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
                 className="input"
                 placeholder="Bovino, Ovino, Porcino..."
                 required
+                autoComplete="off"
               />
             </div>
             <div>
@@ -509,7 +532,7 @@ export function SanidadModal({ onClose, onSaved }: SanidadModalProps) {
                   Guardando…
                 </span>
               ) : (
-                "Registrar"
+                initialData ? "Guardar cambios" : "Registrar"
               )}
             </button>
           </div>

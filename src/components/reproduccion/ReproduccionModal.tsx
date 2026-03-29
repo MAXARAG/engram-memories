@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Heart, FlaskConical, Calendar, Baby, ChevronDown } from "lucide-react";
-import type { Reproduccion, TipoServicio } from "@/types";
+import { AnimalIdentifierField } from "@/components/common/AnimalIdentifierField";
+import { findAnimalByIdentifier } from "@/lib/animalReferences";
+import { X, Heart, FlaskConical, Calendar, ChevronDown } from "lucide-react";
+import { CalfIcon } from "@/components/icons/CalfIcon";
+import type { AnimalRow, ReproduccionRow, ReproduccionInsert, TipoServicio } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -27,12 +30,6 @@ const GESTACION_DIAS: Record<string, number> = {
 
 function today(): string {
   return new Date().toISOString().split("T")[0];
-}
-
-function toApiDate(dateStr: string): string {
-  if (!dateStr) return "";
-  const [y, m, d] = dateStr.split("-");
-  return `${d}/${m}/${y}`;
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -60,23 +57,34 @@ interface FormState {
 }
 
 interface ReproduccionModalProps {
+  animals: AnimalRow[];
+  initialData?: ReproduccionRow | null;
   onClose: () => void;
-  onSaved: (record: Reproduccion) => void;
+  onSaved: (record: ReproduccionRow) => void;
+}
+
+function createInitialState(
+  record: ReproduccionRow | null | undefined,
+  animals: AnimalRow[]
+): FormState {
+  const matchedAnimal = animals.find((animal) => animal.id === record?.animal_id);
+
+  return {
+    idMadre: matchedAnimal?.identificador ?? "",
+    especie: record?.especie ?? matchedAnimal?.especie ?? "",
+    fechaServicio: record?.fecha_servicio ?? today(),
+    macho: record?.macho ?? "",
+    tipoServicio: record?.tipo_servicio ?? "",
+    diagnostico: record?.diagnostico ?? "Pendiente",
+    fechaParto: record?.fecha_parto ?? "",
+    nCrias: record ? String(record.n_crias) : "0",
+  };
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) {
-  const [form, setForm] = useState<FormState>({
-    idMadre: "",
-    especie: "",
-    fechaServicio: today(),
-    macho: "",
-    tipoServicio: "",
-    diagnostico: "Pendiente",
-    fechaParto: "",
-    nCrias: "0",
-  });
+export function ReproduccionModal({ animals, initialData = null, onClose, onSaved }: ReproduccionModalProps) {
+  const [form, setForm] = useState<FormState>(createInitialState(initialData, animals));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +98,11 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  useEffect(() => {
+    setForm(createInitialState(initialData, animals));
+    setError(null);
+  }, [initialData, animals]);
+
   // Calculated estimated birth date
   const estimatedParto =
     form.especie && form.fechaServicio
@@ -99,7 +112,20 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+
+    setForm((prev) => {
+      if (name !== "idMadre") {
+        return { ...prev, [name]: value };
+      }
+
+      const matchedAnimal = findAnimalByIdentifier(animals, value);
+      return {
+        ...prev,
+        idMadre: value,
+        especie: matchedAnimal?.especie ?? prev.especie,
+      };
+    });
     setError(null);
   }
 
@@ -119,28 +145,30 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
     if (!form.macho.trim()) return setError("Ingresá el ID o nombre del macho.");
     if (!form.tipoServicio) return setError("Seleccioná el tipo de servicio.");
 
+    const matchedAnimal = findAnimalByIdentifier(animals, form.idMadre);
+    if (!matchedAnimal) {
+      return setError("El identificador de la madre no existe. Seleccioná uno válido.");
+    }
+
     setLoading(true);
     try {
-      const { addReproduccion } = await import("@/lib/api");
+      const { addReproduccion, updateReproduccion } = await import("@/lib/api");
 
-      const payload: Omit<Reproduccion, "id"> = {
-        idMadre: form.idMadre.trim(),
-        especie: form.especie,
-        fechaServicio: toApiDate(form.fechaServicio),
-        macho: form.macho.trim(),
-        tipoServicio: form.tipoServicio as TipoServicio,
-        diagnostico: form.diagnostico,
-        fechaParto: toApiDate(form.fechaParto),
-        nCrias: parseInt(form.nCrias, 10) || 0,
+      const payload: ReproduccionInsert = {
+        animal_id: matchedAnimal.id,
+        especie: form.especie || matchedAnimal.especie,
+        fecha_servicio: form.fechaServicio,
+        macho: form.macho.trim() || null,
+        tipo_servicio: form.tipoServicio as TipoServicio,
+        diagnostico: form.diagnostico || null,
+        fecha_parto: form.fechaParto || null,
+        n_crias: parseInt(form.nCrias, 10) || 0,
       };
 
-      const result = await addReproduccion(payload);
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar el servicio.");
-      }
-
-      onSaved(result.data);
+      const saved = initialData
+        ? await updateReproduccion(initialData.id, payload)
+        : await addReproduccion(payload);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -150,16 +178,17 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{
         background: "rgba(30, 61, 26, 0.55)",
         backdropFilter: "blur(4px)",
         overflowY: "auto",
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       <div
-        className="w-full animate-fade-in"
+        className="w-full animate-fade-in modal-content"
         style={{
           maxWidth: 560,
           background: "var(--color-bg-card)",
@@ -201,7 +230,7 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
                   color: "#fff",
                 }}
               >
-                Registrar Servicio
+                {initialData ? "Editar Servicio" : "Registrar Servicio"}
               </h2>
               <p
                 style={{
@@ -210,7 +239,7 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
                   marginTop: "1px",
                 }}
               >
-                Control reproductivo del rodeo
+                {initialData ? "Actualizá el servicio reproductivo del rodeo" : "Control reproductivo del rodeo"}
               </p>
             </div>
           </div>
@@ -231,18 +260,16 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
         >
           {/* Row 1: idMadre + especie */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-            <div>
-              <label className="label">ID Madre</label>
-              <input
-                type="text"
-                name="idMadre"
-                value={form.idMadre}
-                onChange={handleChange}
-                className="input"
-                placeholder="Ej: VV-0042"
-                required
-              />
-            </div>
+            <AnimalIdentifierField
+              id="rm-idMadre"
+              name="idMadre"
+              label="ID Madre"
+              value={form.idMadre}
+              animals={animals}
+              onChange={handleChange}
+              placeholder="Ej: VV-0042"
+              required
+            />
             <div>
               <label className="label">Especie</label>
               <div style={{ position: "relative" }}>
@@ -455,7 +482,7 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
                 padding: "0.75rem 1rem",
               }}
             >
-              <Baby size={16} style={{ color: "var(--color-accent)", flexShrink: 0 }} />
+              <CalfIcon size={16} style={{ color: "var(--color-accent)", flexShrink: 0 }} />
               <span style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
                 Parto estimado:{" "}
                 <strong
@@ -538,7 +565,7 @@ export function ReproduccionModal({ onClose, onSaved }: ReproduccionModalProps) 
                   Guardando…
                 </span>
               ) : (
-                "Registrar"
+                initialData ? "Guardar cambios" : "Registrar"
               )}
             </button>
           </div>

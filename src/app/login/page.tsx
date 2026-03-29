@@ -9,7 +9,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { login, isAuthenticated, isLoading } = useAuth();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,14 +24,14 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim()) {
       setError("Completá todos los campos");
       return;
     }
     setError(null);
     setSubmitting(true);
 
-    const result = await login(username.trim(), password);
+    const result = await login(email.trim(), password);
     if (result.success) {
       router.replace("/animales");
     } else {
@@ -163,17 +163,17 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit} noValidate>
               <div style={{ marginBottom: "1.125rem" }}>
-                <label htmlFor="username" className="label">
-                  Usuario
+                <label htmlFor="email" className="label">
+                  Email
                 </label>
                 <input
-                  id="username"
-                  type="text"
+                  id="email"
+                  type="email"
                   className="input"
-                  placeholder="Tu nombre de usuario"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                   autoFocus
                   disabled={submitting}
                 />

@@ -1,23 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Beef } from "lucide-react";
-import type { Animal, AnimalOrigen, AnimalEstado } from "@/types";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+import { useEffect, useState } from "react";
+import { X } from "lucide-react";
+import type {
+  AnimalEstado,
+  AnimalInsert,
+  AnimalOrigen,
+  AnimalRow,
+} from "@/types/database";
+import { CowIcon } from "@/components/icons/CowIcon";
 
 const ESPECIES = ["Bovino", "Ovino", "Porcino", "Caprino", "Equino", "Aviar"];
 const ORIGENES: AnimalOrigen[] = ["Nacido", "Comprado"];
 const ESTADOS: AnimalEstado[] = ["Activo", "Vendido", "Muerto", "Faenado"];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface AnimalModalProps {
+  initialData?: AnimalRow | null;
   onClose: () => void;
-  onSaved: (animal: Animal) => void;
+  onSaved: (animal: AnimalRow) => void;
 }
 
 interface FormState {
+  identificador: string;
   especie: string;
   categoria: string;
   raza: string;
@@ -29,21 +33,23 @@ interface FormState {
   origen: AnimalOrigen;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function createInitialState(animal?: AnimalRow | null): FormState {
+  return {
+    identificador: animal?.identificador ?? "",
+    especie: animal?.especie ?? "",
+    categoria: animal?.categoria ?? "",
+    raza: animal?.raza ?? "",
+    sexo: animal?.sexo ?? "",
+    fechaNac: animal?.fecha_nac ?? "",
+    estado: animal?.estado ?? "Activo",
+    sistema: animal?.sistema ?? "",
+    ubicacion: animal?.ubicacion ?? "",
+    origen: animal?.origen ?? "Nacido",
+  };
+}
 
-export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
-  const [form, setForm] = useState<FormState>({
-    especie: "",
-    categoria: "",
-    raza: "",
-    sexo: "",
-    fechaNac: "",
-    estado: "Activo",
-    sistema: "",
-    ubicacion: "",
-    origen: "Nacido",
-  });
-
+export function AnimalModal({ initialData = null, onClose, onSaved }: AnimalModalProps) {
+  const [form, setForm] = useState<FormState>(() => createInitialState(initialData));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,23 +61,21 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
+  useEffect(() => {
+    setForm(createInitialState(initialData));
+    setError(null);
+  }, [initialData]);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     setError(null);
-  }
-
-  function toApiDate(dateStr: string): string {
-    if (!dateStr) return "";
-    const [y, m, d] = dateStr.split("-");
-    return `${d}/${m}/${y}`;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
+    if (!form.identificador.trim()) return setError("Ingresá el ID visible del animal.");
     if (!form.especie) return setError("Seleccioná la especie.");
     if (!form.categoria.trim()) return setError("Ingresá la categoría.");
     if (!form.sexo.trim()) return setError("Ingresá el sexo.");
@@ -79,27 +83,26 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
 
     setLoading(true);
     try {
-      const { addAnimal } = await import("@/lib/api");
+      const { addAnimal, updateAnimal } = await import("@/lib/api");
 
-      const payload: Omit<Animal, "idAnimal"> = {
+      const payload: AnimalInsert = {
+        identificador: form.identificador.trim(),
         especie: form.especie,
         categoria: form.categoria.trim(),
-        raza: form.raza.trim(),
+        raza: form.raza.trim() || null,
         sexo: form.sexo.trim(),
-        fechaNac: form.fechaNac ? toApiDate(form.fechaNac) : "",
+        fecha_nac: form.fechaNac || null,
         estado: form.estado,
-        sistema: form.sistema.trim(),
-        ubicacion: form.ubicacion.trim(),
+        sistema: form.sistema.trim() || null,
+        ubicacion: form.ubicacion.trim() || null,
         origen: form.origen,
       };
 
-      const result = await addAnimal(payload);
+      const saved = initialData
+        ? await updateAnimal(initialData.id, payload)
+        : await addAnimal(payload);
 
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar el animal.");
-      }
-
-      onSaved(result.data);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -109,16 +112,17 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{
         background: "rgba(30, 61, 26, 0.65)",
         backdropFilter: "blur(4px)",
         overflowY: "auto",
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       <div
-        className="w-full max-w-lg animate-fade-in"
+        className="w-full max-w-lg animate-fade-in modal-content"
         style={{
           background: "var(--color-bg-card)",
           borderRadius: "var(--radius-xl)",
@@ -128,7 +132,6 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
           margin: "auto",
         }}
       >
-        {/* Header */}
         <div
           style={{
             background:
@@ -148,7 +151,7 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 display: "flex",
               }}
             >
-              <Beef size={20} color="#fff" />
+              <CowIcon size={20} style={{ color: "#fff" }} />
             </div>
             <div>
               <h2
@@ -159,7 +162,7 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                   color: "#fff",
                 }}
               >
-                Nuevo Animal
+                {initialData ? "Editar Animal" : "Nuevo Animal"}
               </h2>
               <p
                 style={{
@@ -168,7 +171,7 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                   marginTop: "1px",
                 }}
               >
-                Registrá un nuevo animal en el stock
+                {initialData ? "Actualizá la ficha del animal" : "Registrá un nuevo animal en el stock"}
               </p>
             </div>
           </div>
@@ -182,7 +185,6 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
           </button>
         </div>
 
-        {/* Form */}
         <form
           onSubmit={handleSubmit}
           style={{
@@ -192,7 +194,6 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
             gap: "1rem",
           }}
         >
-          {/* Especie + Categoría */}
           <div
             style={{
               display: "grid",
@@ -200,6 +201,20 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
               gap: "0.75rem",
             }}
           >
+            <div>
+              <label className="label">
+                ID Animal <span style={{ color: "var(--color-error)" }}>*</span>
+              </label>
+              <input
+                type="text"
+                name="identificador"
+                value={form.identificador}
+                onChange={handleChange}
+                className="input"
+                placeholder="Ej: BOV-0042"
+                required
+              />
+            </div>
             <div>
               <label className="label">
                 Especie <span style={{ color: "var(--color-error)" }}>*</span>
@@ -212,13 +227,22 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 required
               >
                 <option value="">Seleccionar...</option>
-                {ESPECIES.map((e) => (
-                  <option key={e} value={e}>
-                    {e}
+                {ESPECIES.map((especie) => (
+                  <option key={especie} value={especie}>
+                    {especie}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.75rem",
+            }}
+          >
             <div>
               <label className="label">
                 Categoría <span style={{ color: "var(--color-error)" }}>*</span>
@@ -233,16 +257,6 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 required
               />
             </div>
-          </div>
-
-          {/* Raza + Sexo */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0.75rem",
-            }}
-          >
             <div>
               <label className="label">Raza</label>
               <input
@@ -254,6 +268,15 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 placeholder="Angus, Hereford..."
               />
             </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.75rem",
+            }}
+          >
             <div>
               <label className="label">
                 Sexo <span style={{ color: "var(--color-error)" }}>*</span>
@@ -270,16 +293,6 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 <option value="Hembra">Hembra</option>
               </select>
             </div>
-          </div>
-
-          {/* Fecha Nac + Origen */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0.75rem",
-            }}
-          >
             <div>
               <label className="label">Fecha de Nacimiento</label>
               <input
@@ -290,6 +303,15 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 className="input"
               />
             </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.75rem",
+            }}
+          >
             <div>
               <label className="label">
                 Origen <span style={{ color: "var(--color-error)" }}>*</span>
@@ -301,23 +323,13 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 className="input"
                 required
               >
-                {ORIGENES.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
+                {ORIGENES.map((origen) => (
+                  <option key={origen} value={origen}>
+                    {origen}
                   </option>
                 ))}
               </select>
             </div>
-          </div>
-
-          {/* Estado + Sistema */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0.75rem",
-            }}
-          >
             <div>
               <label className="label">Estado</label>
               <select
@@ -326,13 +338,22 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 onChange={handleChange}
                 className="input"
               >
-                {ESTADOS.map((e) => (
-                  <option key={e} value={e}>
-                    {e}
+                {ESTADOS.map((estado) => (
+                  <option key={estado} value={estado}>
+                    {estado}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.75rem",
+            }}
+          >
             <div>
               <label className="label">Sistema</label>
               <input
@@ -344,22 +365,19 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                 placeholder="Pastoril, Feedlot..."
               />
             </div>
+            <div>
+              <label className="label">Ubicación</label>
+              <input
+                type="text"
+                name="ubicacion"
+                value={form.ubicacion}
+                onChange={handleChange}
+                className="input"
+                placeholder="Potrero 1, Lote A..."
+              />
+            </div>
           </div>
 
-          {/* Ubicación */}
-          <div>
-            <label className="label">Ubicación</label>
-            <input
-              type="text"
-              name="ubicacion"
-              value={form.ubicacion}
-              onChange={handleChange}
-              className="input"
-              placeholder="Potrero 1, Lote A..."
-            />
-          </div>
-
-          {/* Error */}
           {error && (
             <p
               className="animate-fade-in"
@@ -376,7 +394,6 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
             </p>
           )}
 
-          {/* Actions */}
           <div
             style={{
               display: "flex",
@@ -399,16 +416,10 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
               type="submit"
               className="btn btn-primary"
               disabled={loading}
-              style={{ minWidth: "140px" }}
+              style={{ minWidth: "160px" }}
             >
               {loading ? (
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                  }}
-                >
+                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <span
                     style={{
                       width: 14,
@@ -422,6 +433,8 @@ export function AnimalModal({ onClose, onSaved }: AnimalModalProps) {
                   />
                   Guardando…
                 </span>
+              ) : initialData ? (
+                "Guardar cambios"
               ) : (
                 "Registrar Animal"
               )}

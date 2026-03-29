@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AnimalIdentifierField } from "@/components/common/AnimalIdentifierField";
+import { findAnimalByIdentifier } from "@/lib/animalReferences";
 import {
   X,
   ArrowUpCircle,
@@ -8,7 +10,7 @@ import {
   ArrowRightCircle,
   ArrowLeftRight,
 } from "lucide-react";
-import type { Movimiento, TipoMovimiento } from "@/types";
+import type { AnimalRow, MovimientoRow, MovimientoInsert, TipoMovimiento } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,11 +18,7 @@ function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-function toApiDate(isoDate: string): string {
-  if (!isoDate) return "";
-  const [y, m, d] = isoDate.split("-");
-  return `${d}/${m}/${y}`;
-}
+// (date directly from ISO input)
 
 // ─── Config por tipo ──────────────────────────────────────────────────────────
 
@@ -75,8 +73,10 @@ const TIPO_CONFIG: Record<TipoMovimiento, TipoConfig> = {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MovimientoModalProps {
+  animals: AnimalRow[];
+  initialData?: MovimientoRow | null;
   onClose: () => void;
-  onSaved: (record: Movimiento) => void;
+  onSaved: (record: MovimientoRow) => void;
 }
 
 interface FormState {
@@ -88,17 +88,26 @@ interface FormState {
   observaciones: string;
 }
 
+function createInitialState(
+  record: MovimientoRow | null | undefined,
+  animals: AnimalRow[]
+): FormState {
+  const matchedAnimal = animals.find((animal) => animal.id === record?.animal_id);
+
+  return {
+    fecha: record?.fecha ?? todayISO(),
+    idAnimal: matchedAnimal?.identificador ?? "",
+    tipo: record?.tipo ?? "",
+    motivo: record?.motivo ?? "",
+    destino: record?.destino ?? "",
+    observaciones: record?.observaciones ?? "",
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
-  const [form, setForm] = useState<FormState>({
-    fecha: todayISO(),
-    idAnimal: "",
-    tipo: "",
-    motivo: "",
-    destino: "",
-    observaciones: "",
-  });
+export function MovimientoModal({ animals, initialData = null, onClose, onSaved }: MovimientoModalProps) {
+  const [form, setForm] = useState<FormState>(createInitialState(initialData, animals));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +122,11 @@ export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  useEffect(() => {
+    setForm(createInitialState(initialData, animals));
+    setError(null);
+  }, [initialData, animals]);
 
   // Resetear motivo y destino al cambiar tipo
   function handleTipo(tipo: TipoMovimiento) {
@@ -137,26 +151,28 @@ export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
     if (!form.tipo) return setError("Seleccioná el tipo de movimiento.");
     if (!form.motivo.trim()) return setError("Ingresá el motivo.");
 
+    const matchedAnimal = findAnimalByIdentifier(animals, form.idAnimal);
+    if (!matchedAnimal) {
+      return setError("El identificador del animal no existe. Seleccioná uno válido.");
+    }
+
     setLoading(true);
     try {
-      const { addMovimiento } = await import("@/lib/api");
+      const { addMovimiento, updateMovimiento } = await import("@/lib/api");
 
-      const payload: Omit<Movimiento, "id"> = {
-        fecha: toApiDate(form.fecha),
-        idAnimal: form.idAnimal.trim(),
+      const payload: MovimientoInsert = {
+        fecha: form.fecha,
+        animal_id: matchedAnimal.id,
         tipo: form.tipo,
-        motivo: form.motivo.trim(),
-        destino: form.destino.trim(),
-        observaciones: form.observaciones.trim(),
+        motivo: form.motivo.trim() || null,
+        destino: form.destino.trim() || null,
+        observaciones: form.observaciones.trim() || null,
       };
 
-      const result = await addMovimiento(payload);
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar el movimiento.");
-      }
-
-      onSaved(result.data);
+      const saved = initialData
+        ? await updateMovimiento(initialData.id, payload)
+        : await addMovimiento(payload);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -166,17 +182,18 @@ export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{
         background: "rgba(30, 61, 26, 0.65)",
         backdropFilter: "blur(4px)",
         overflowY: "auto",
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       {/* Panel */}
       <div
-        className="w-full max-w-xl animate-fade-in"
+        className="w-full max-w-xl animate-fade-in modal-content"
         style={{
           background: "var(--color-bg-card)",
           borderRadius: "var(--radius-xl)",
@@ -217,7 +234,7 @@ export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
                   color: "#fff",
                 }}
               >
-                Registrar Movimiento
+                {initialData ? "Editar Movimiento" : "Registrar Movimiento"}
               </h2>
               <p
                 style={{
@@ -226,7 +243,7 @@ export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
                   marginTop: "1px",
                 }}
               >
-                Alta, baja o traslado de un animal
+                {initialData ? "Actualizá el alta, baja o traslado del animal" : "Alta, baja o traslado de un animal"}
               </p>
             </div>
           </div>
@@ -272,21 +289,16 @@ export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
                 required
               />
             </div>
-            <div>
-              <label className="label" htmlFor="mv-idAnimal">
-                ID Animal <span style={{ color: "var(--color-error)" }}>*</span>
-              </label>
-              <input
-                id="mv-idAnimal"
-                type="text"
-                name="idAnimal"
-                value={form.idAnimal}
-                onChange={handleChange}
-                className="input"
-                placeholder="Ej: BOV-0042"
-                required
-              />
-            </div>
+            <AnimalIdentifierField
+              id="mv-idAnimal"
+              name="idAnimal"
+              label="ID Animal"
+              value={form.idAnimal}
+              animals={animals}
+              onChange={handleChange}
+              placeholder="Ej: BOV-0042"
+              required
+            />
           </div>
 
           {/* Tipo — Radio Cards */}
@@ -500,7 +512,7 @@ export function MovimientoModal({ onClose, onSaved }: MovimientoModalProps) {
                   Guardando…
                 </span>
               ) : (
-                "Registrar Movimiento"
+                initialData ? "Guardar cambios" : "Registrar Movimiento"
               )}
             </button>
           </div>

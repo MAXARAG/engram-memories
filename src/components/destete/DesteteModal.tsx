@@ -1,14 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Baby, Calculator, ArrowRight, ShoppingCart, Beef } from "lucide-react";
-import type { Destete, DestinoDestete } from "@/types";
+import { AnimalIdentifierField } from "@/components/common/AnimalIdentifierField";
+import { CowIcon } from "@/components/icons/CowIcon";
+import { findAnimalByIdentifier } from "@/lib/animalReferences";
+import { X, Calculator, ArrowRight, ShoppingCart } from "lucide-react";
+import { CalfIcon } from "@/components/icons/CalfIcon";
+import type { AnimalRow, DesteteRow, DesteteInsert, DestinoDestete } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DesteteModalProps {
+  animals: AnimalRow[];
+  initialData?: DesteteRow | null;
   onClose: () => void;
-  onSaved: (record: Destete) => void;
+  onSaved: (record: DesteteRow) => void;
 }
 
 interface FormState {
@@ -28,11 +34,25 @@ const today = (): string => {
   return d.toISOString().split("T")[0];
 };
 
-function toApiDate(dateStr: string): string {
-  if (!dateStr) return "";
-  const [y, m, d] = dateStr.split("-");
-  return `${d}/${m}/${y}`;
+function createInitialState(
+  record: DesteteRow | null | undefined,
+  animals: AnimalRow[]
+): FormState {
+  const cria = animals.find((animal) => animal.id === record?.cria_id);
+  const madre = animals.find((animal) => animal.id === record?.madre_id);
+
+  return {
+    fecha: record?.fecha ?? today(),
+    idCria: cria?.identificador ?? "",
+    madre: madre?.identificador ?? "",
+    especie: record?.especie ?? cria?.especie ?? madre?.especie ?? "",
+    nCrias: record ? String(record.n_crias) : "",
+    peso: record ? String(record.peso_total) : "",
+    destino: record?.destino ?? "Recría",
+  };
 }
+
+// (date directly from ISO input)
 
 // ─── Destino Config ───────────────────────────────────────────────────────────
 
@@ -55,7 +75,7 @@ const DESTINO_OPTIONS: DestinoOption[] = [
     value: "Recría",
     label: "Recría",
     description: "Continúa en el establecimiento",
-    Icon: Baby,
+    Icon: CalfIcon,
     bg: "var(--color-primary-muted)",
     border: "var(--color-border)",
     activeBg: "#dcfce7",
@@ -81,7 +101,7 @@ const DESTINO_OPTIONS: DestinoOption[] = [
     value: "Engorde",
     label: "Engorde",
     description: "Pasa a corral de engorde",
-    Icon: Beef,
+    Icon: CowIcon,
     bg: "#fff7ed",
     border: "var(--color-border)",
     activeBg: "#fed7aa",
@@ -94,16 +114,8 @@ const DESTINO_OPTIONS: DestinoOption[] = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
-  const [form, setForm] = useState<FormState>({
-    fecha: today(),
-    idCria: "",
-    madre: "",
-    especie: "",
-    nCrias: "",
-    peso: "",
-    destino: "Recría",
-  });
+export function DesteteModal({ animals, initialData = null, onClose, onSaved }: DesteteModalProps) {
+  const [form, setForm] = useState<FormState>(createInitialState(initialData, animals));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,10 +134,28 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  useEffect(() => {
+    setForm(createInitialState(initialData, animals));
+    setError(null);
+  }, [initialData, animals]);
+
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement>
   ) {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+
+    setForm((prev) => {
+      if (name !== "idCria" && name !== "madre") {
+        return { ...prev, [name]: value };
+      }
+
+      const matchedAnimal = findAnimalByIdentifier(animals, value);
+      return {
+        ...prev,
+        [name]: value,
+        especie: matchedAnimal?.especie ?? prev.especie,
+      };
+    });
     setError(null);
   }
 
@@ -142,35 +172,43 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
     const peso = parseFloat(form.peso);
 
     if (!form.idCria.trim()) return setError("Ingresá el ID del lote de crías.");
-    if (!form.madre.trim()) return setError("Ingresá el ID de la madre.");
+
     if (!form.especie.trim()) return setError("Ingresá la especie.");
     if (isNaN(nCrias) || nCrias <= 0) return setError("N° de crías debe ser mayor a 0.");
     if (isNaN(peso) || peso <= 0) return setError("El peso total debe ser mayor a 0.");
+
+    const cria = findAnimalByIdentifier(animals, form.idCria);
+    if (!cria) return setError("El identificador de la cría no existe. Seleccioná uno válido.");
+
+    const madre = form.madre.trim()
+      ? findAnimalByIdentifier(animals, form.madre)
+      : null;
+
+    if (form.madre.trim() && !madre) {
+      return setError("El identificador de la madre no existe. Seleccioná uno válido.");
+    }
 
     const promedioCalculado = peso / nCrias;
 
     setLoading(true);
     try {
-      const { addDestete } = await import("@/lib/api");
+      const { addDestete, updateDestete } = await import("@/lib/api");
 
-      const payload: Omit<Destete, "id"> = {
-        fecha: toApiDate(form.fecha),
-        idCria: form.idCria.trim(),
-        madre: form.madre.trim(),
-        especie: form.especie.trim(),
-        nCrias,
-        peso,
-        promedio: promedioCalculado,
+      const payload: DesteteInsert = {
+        fecha: form.fecha,
+        cria_id: cria.id,
+        madre_id: madre?.id ?? null,
+        especie: form.especie.trim() || cria.especie,
+        n_crias: nCrias,
+        peso_total: peso,
+        peso_promedio: promedioCalculado,
         destino: form.destino,
       };
 
-      const result = await addDestete(payload);
-
-      if (!result.success || !result.data) {
-        throw new Error(result.error ?? "Error al registrar el destete.");
-      }
-
-      onSaved(result.data);
+      const saved = initialData
+        ? await updateDestete(initialData.id, payload)
+        : await addDestete(payload);
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -180,12 +218,13 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
       style={{ background: "rgba(30, 61, 26, 0.55)", backdropFilter: "blur(4px)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => { (e.currentTarget as HTMLDivElement).dataset.mdown = e.target === e.currentTarget ? "1" : "0"; }}
+      onClick={(e) => { if (e.target === e.currentTarget && (e.currentTarget as HTMLDivElement).dataset.mdown === "1") onClose(); }}
     >
       <div
-        className="w-full animate-fade-in"
+        className="w-full animate-fade-in modal-content"
         style={{
           maxWidth: 520,
           background: "var(--color-bg-card)",
@@ -215,7 +254,7 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
                 display: "flex",
               }}
             >
-              <Baby size={20} color="#fff" />
+              <CalfIcon size={20} color="#fff" />
             </div>
             <div>
               <h2
@@ -226,7 +265,7 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
                   color: "#fff",
                 }}
               >
-                Registrar Destete
+                {initialData ? "Editar Destete" : "Registrar Destete"}
               </h2>
               <p
                 style={{
@@ -235,7 +274,7 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
                   marginTop: "1px",
                 }}
               >
-                Registrá el destete y asignale un destino
+                {initialData ? "Actualizá el destete y su destino" : "Registrá el destete y asignale un destino"}
               </p>
             </div>
           </div>
@@ -269,30 +308,25 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
 
           {/* idCria + madre */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-            <div>
-              <label className="label">ID Lote Crías</label>
-              <input
-                type="text"
-                name="idCria"
-                value={form.idCria}
-                onChange={handleChange}
-                className="input"
-                placeholder="EJ-2024-001"
-                required
-              />
-            </div>
-            <div>
-              <label className="label">ID Madre</label>
-              <input
-                type="text"
-                name="madre"
-                value={form.madre}
-                onChange={handleChange}
-                className="input"
-                placeholder="BOV-0042"
-                required
-              />
-            </div>
+            <AnimalIdentifierField
+              id="dm-idCria"
+              name="idCria"
+              label="ID Cría"
+              value={form.idCria}
+              animals={animals}
+              onChange={handleChange}
+              placeholder="Ej: TER-0042"
+              required
+            />
+            <AnimalIdentifierField
+              id="dm-madre"
+              name="madre"
+              label="ID Madre"
+              value={form.madre}
+              animals={animals}
+              onChange={handleChange}
+              placeholder="Ej: BOV-0042"
+            />
           </div>
 
           {/* especie */}
@@ -503,7 +537,7 @@ export function DesteteModal({ onClose, onSaved }: DesteteModalProps) {
               ) : (
                 <>
                   <ArrowRight size={15} />
-                  Registrar Destete
+                  {initialData ? "Guardar cambios" : "Registrar Destete"}
                 </>
               )}
             </button>
