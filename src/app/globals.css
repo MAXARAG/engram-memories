@@ -401,6 +401,58 @@ p { margin: 0; }
 .stagger > *:nth-child(5) { animation-delay: 240ms; }
 .stagger > *:nth-child(6) { animation-delay: 300ms; }
 
+/* ─── Mobile topbar ───────────────────────────────────────────────────────────── */
+
+.mobile-topbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 1rem;
+  background: var(--color-bg-sidebar);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-shrink: 0;
+}
+
+.mobile-topbar-title {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #fff;
+  flex: 1;
+  text-align: center;
+}
+
+.mobile-topbar-btn {
+  width: 36px;
+  height: 36px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* Drawer overlay */
+.drawer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 50;
+  animation: fadeIn 0.2s ease;
+}
+
+.drawer-overlay.open {
+  display: block;
+}
+
 /* ─── Sidebar ─────────────────────────────────────────────────────────────────── */
 
 .sidebar {
@@ -671,6 +723,34 @@ p { margin: 0; }
   .hide-mobile { display: none !important; }
   .show-mobile-only { display: flex !important; }
 
+  /* Topbar visible on mobile */
+  .mobile-topbar { display: flex; }
+
+  /* Sidebar becomes a fixed drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    height: 100vh;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar.drawer-open {
+    transform: translateX(0);
+  }
+
+  /* app-shell stacks vertically; sidebar is out of flow */
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .app-main {
+    padding-bottom: 5rem;
+  }
+
   .page-header {
     flex-direction: column;
     align-items: flex-start;
@@ -680,10 +760,6 @@ p { margin: 0; }
   .page-header .btn {
     width: 100%;
     justify-content: center;
-  }
-
-  .app-main {
-    padding-bottom: 5rem; /* Space for FAB */
   }
 
   /* Dashboard grid on mobile */

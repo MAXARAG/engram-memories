@@ -16,6 +16,7 @@ import {
   LogOut,
   Leaf,
   ChevronRight,
+  X,
 } from "lucide-react";
 
 // ─── Nav Items ─────────────────────────────────────────────────────────────────
@@ -34,7 +35,12 @@ const navItems = [
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export default function Sidebar() {
+interface SidebarProps {
+  drawerOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ drawerOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout, isLoading } = useAuth();
 
@@ -44,7 +50,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${drawerOpen ? " drawer-open" : ""}`}>
       {/* Logo */}
       <div
         style={{
@@ -52,6 +58,9 @@ export default function Sidebar() {
           borderBottom: "1px solid rgba(255,255,255,0.08)",
           position: "relative",
           zIndex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
@@ -94,6 +103,18 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
+
+        {/* Close button — solo en mobile */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="mobile-topbar-btn"
+            aria-label="Cerrar menú"
+            style={{ flexShrink: 0 }}
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
