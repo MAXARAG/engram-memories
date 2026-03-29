@@ -3,15 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Wheat, Plus, Filter, X, PackageOpen, ChevronDown, Clock,
-  Package, AlertTriangle, BarChart2, TrendingDown, DollarSign,
-  ShoppingCart,
+  Package, AlertTriangle, ShoppingCart,
 } from "lucide-react";
 import type { AlimentacionRow, StockAlimentoRow } from "@/types/database";
 import { AlimentacionModal } from "@/components/alimentacion/AlimentacionModal";
 import { StockAlimentoModal } from "@/components/alimentacion/StockAlimentoModal";
 import { RowActions } from "@/components/common/RowActions";
 
-type Tab = "registros" | "stock" | "estadisticas";
+type Tab = "registros" | "stock";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,7 +77,7 @@ export default function AlimentacionPage() {
   // ── Load stock (lazy: only when tab activated) ────────────────────────────
   const [stockLoaded, setStockLoaded] = useState(false);
   useEffect(() => {
-    if (activeTab !== "stock" && activeTab !== "estadisticas") return;
+    if (activeTab !== "stock") return;
     if (stockLoaded) return;
     let cancelled = false;
     async function load() {
@@ -207,9 +206,8 @@ export default function AlimentacionPage() {
   const fabLabel = activeTab === "stock" ? "Nuevo producto" : "Nueva Carga";
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "registros",    label: "Registros",    icon: <Clock size={15} /> },
-    { id: "stock",        label: "Stock",        icon: <Package size={15} /> },
-    { id: "estadisticas", label: "Estadísticas", icon: <BarChart2 size={15} /> },
+    { id: "registros", label: "Registros", icon: <Clock size={15} /> },
+    { id: "stock", label: "Stock", icon: <Package size={15} /> },
   ];
 
   return (
@@ -504,126 +502,13 @@ export default function AlimentacionPage() {
           </section>
         )}
 
-        {/* ── TAB: ESTADÍSTICAS ── */}
-        {activeTab === "estadisticas" && (
-          <section>
-            {loadingReg ? (
-              <div className="record-grid">
-                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton-card" style={{ height: 120 }} />)}
-              </div>
-            ) : !stats ? (
-              <div className="card">
-                <div className="empty-state">
-                  <BarChart2 className="empty-state-icon" size={56} />
-                  <p style={{ fontFamily: "var(--font-display)", fontSize: "1.1rem", fontWeight: 600, color: "var(--color-primary-dark)", marginBottom: "0.375rem" }}>Sin datos para analizar</p>
-                  <p style={{ fontSize: "0.9rem" }}>Cargá registros de alimentación para ver estadísticas.</p>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-
-                {/* KPIs */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "1rem" }}>
-                  {[
-                    { label: "Total KG consumidos", value: formatKg(stats.totalKg), icon: <TrendingDown size={18} />, color: "var(--color-primary)" },
-                    { label: "Costo total registrado", value: formatMoney(stats.totalCosto), icon: <DollarSign size={18} />, color: "var(--color-accent)" },
-                    { label: "Prom. kg/animal/carga", value: stats.promKgAnimal.toLocaleString("es-AR", { maximumFractionDigits: 2 }) + " kg", icon: <Wheat size={18} />, color: "#6366f1" },
-                    { label: "Total registros", value: records.length.toString(), icon: <Clock size={18} />, color: "#0ea5e9" },
-                  ].map(kpi => (
-                    <div key={kpi.label} className="card" style={{ padding: "1rem 1.25rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem", color: kpi.color }}>
-                        {kpi.icon}
-                        <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{kpi.label}</span>
-                      </div>
-                      <p style={{ fontFamily: "var(--font-display)", fontSize: "1.375rem", fontWeight: 800, color: "var(--color-primary-dark)" }}>{kpi.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* KG por especie */}
-                <div className="card">
-                  <h3 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", color: "var(--color-primary-dark)", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <BarChart2 size={16} style={{ color: "var(--color-primary)" }} /> KG y costo por especie
-                  </h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-                    {Object.entries(stats.byEspecie).sort((a, b) => b[1].kg - a[1].kg).map(([especie, data]) => {
-                      const maxKg = Math.max(...Object.values(stats.byEspecie).map(d => d.kg), 1);
-                      const pct = Math.round((data.kg / maxKg) * 100);
-                      return (
-                        <div key={especie}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.3rem" }}>
-                            <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{especie}</span>
-                            <div style={{ display: "flex", gap: "1rem", fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
-                              <span>{formatKg(data.kg)}</span>
-                              <span style={{ color: "var(--color-accent)", fontWeight: 600 }}>{formatMoney(data.costo)}</span>
-                            </div>
-                          </div>
-                          <div style={{ height: 8, background: "rgba(0,0,0,0.07)", borderRadius: 99, overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: "var(--color-primary)", transition: "width 0.5s ease" }} />
-                          </div>
-                          <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "0.2rem" }}>{data.registros} cargas</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* KG por mes */}
-                {stats.meses.length > 1 && (
-                  <div className="card">
-                    <h3 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", color: "var(--color-primary-dark)", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <TrendingDown size={16} style={{ color: "var(--color-primary)" }} /> Consumo mensual (últimos 6 meses)
-                    </h3>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", height: 120, paddingBottom: "1.5rem", position: "relative" }}>
-                      {stats.meses.map(([mes, kg]) => {
-                        const h = Math.max(8, Math.round((kg / stats.maxKgMes) * 100));
-                        const [y, m] = mes.split("-");
-                        const label = new Date(Number(y), Number(m) - 1).toLocaleDateString("es-AR", { month: "short" });
-                        return (
-                          <div key={mes} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem" }}>
-                            <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)" }}>{formatKg(kg).replace(" kg", "")}</span>
-                            <div style={{ width: "100%", height: `${h}%`, background: "var(--color-primary)", borderRadius: "4px 4px 0 0", minHeight: 8, transition: "height 0.5s ease" }} />
-                            <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", position: "absolute", bottom: 0 }}>{label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Top raciones */}
-                <div className="card">
-                  <h3 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", color: "var(--color-primary-dark)", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <Wheat size={16} style={{ color: "var(--color-primary)" }} /> Top raciones por KG total
-                  </h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-                    {stats.topRaciones.map(([racion, data], i) => (
-                      <div key={racion} style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                        <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--color-primary-muted)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, color: "var(--color-primary)", flexShrink: 0 }}>{i + 1}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                            <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{racion}</span>
-                            <span style={{ fontSize: "0.8125rem", color: "var(--color-primary)", fontWeight: 700 }}>{formatKg(data.kg)}</span>
-                          </div>
-                          <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>{data.registros} cargas</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-            )}
-          </section>
-        )}
+        {/* Estadísticas: removed — tab hidden per request */}
       </div>
 
       {/* FAB */}
-      {activeTab !== "estadisticas" && (
-        <button className="fab" onClick={fabAction} aria-label={fabLabel}>
-          <Plus size={24} />
-        </button>
-      )}
+      <button className="fab" onClick={fabAction} aria-label={fabLabel}>
+        <Plus size={24} />
+      </button>
 
       {/* Modal Registros */}
       {showModal && (

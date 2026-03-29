@@ -90,7 +90,7 @@ function AlertCard({ alert }: { alert: DashboardDetails["alerts"][0] }) {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: "0.8125rem", fontWeight: 700, color: s.text, lineHeight: 1.2 }}>{alert.title}</p>
-          <p style={{ fontSize: "0.75rem", color: s.text, opacity: 0.8, marginTop: "0.2rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <p style={{ fontSize: "0.75rem", color: s.text, opacity: 0.8, marginTop: "0.2rem" }}>
             {alert.detail}
           </p>
         </div>
@@ -214,7 +214,7 @@ export default function DashboardPage() {
             </div>
 
             {hasAlerts ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "0.625rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.625rem" }}>
                 {details!.alerts.map((alert, i) => (
                   <AlertCard key={i} alert={alert} />
                 ))}
