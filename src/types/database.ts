@@ -8,6 +8,9 @@ export type TipoMovimiento = "Alta" | "Baja" | "Traslado";
 export type TipoCosto = "Fijo" | "Variable";
 export type TipoSanidad = "Vacuna" | "Tratamiento" | "Desparasitación" | "Otro";
 
+// ─── Enums / scalars usados dentro del Database type ────────────────────────
+export type UnidadStock = "kg" | "lt" | "bolsa" | "fardo";
+
 // ─── Database type (formato supabase CLI — compatible con supabase-js 2.x) ───
 
 export type Database = {
@@ -323,6 +326,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      stock_alimento: {
+        Row: {
+          id: string;
+          nombre: string;
+          unidad: UnidadStock;
+          stock_actual: number;
+          stock_minimo: number;
+          stock_optimo: number | null;
+          proveedor: string | null;
+          precio_unidad: number | null;
+          notas: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          unidad?: UnidadStock;
+          stock_actual?: number;
+          stock_minimo?: number;
+          stock_optimo?: number | null;
+          proveedor?: string | null;
+          precio_unidad?: number | null;
+          notas?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          nombre?: string;
+          unidad?: UnidadStock;
+          stock_actual?: number;
+          stock_minimo?: number;
+          stock_optimo?: number | null;
+          proveedor?: string | null;
+          precio_unidad?: number | null;
+          notas?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -373,37 +418,9 @@ export type CostoRow = Database["public"]["Tables"]["costos"]["Row"];
 export type CostoInsert = Database["public"]["Tables"]["costos"]["Insert"];
 export type CostoUpdate = Database["public"]["Tables"]["costos"]["Update"];
 
-// ─── Stock Alimento (tabla stock_alimento) ────────────────────────────────────
-
-export type UnidadStock = "kg" | "lt" | "bolsa" | "fardo";
-
-export interface StockAlimentoRow {
-  id: string;
-  nombre: string;
-  unidad: UnidadStock;
-  stock_actual: number;
-  stock_minimo: number;
-  stock_optimo: number | null;
-  proveedor: string | null;
-  precio_unidad: number | null;
-  notas: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StockAlimentoInsert {
-  id?: string;
-  nombre: string;
-  unidad?: UnidadStock;
-  stock_actual?: number;
-  stock_minimo?: number;
-  stock_optimo?: number | null;
-  proveedor?: string | null;
-  precio_unidad?: number | null;
-  notas?: string | null;
-}
-
-export type StockAlimentoUpdate = Partial<StockAlimentoInsert>;
+export type StockAlimentoRow = Database["public"]["Tables"]["stock_alimento"]["Row"];
+export type StockAlimentoInsert = Database["public"]["Tables"]["stock_alimento"]["Insert"];
+export type StockAlimentoUpdate = Database["public"]["Tables"]["stock_alimento"]["Update"];
 
 // ─── Stats (calculado en cliente, no tabla) ───────────────────────────────────
 
