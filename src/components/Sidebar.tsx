@@ -24,11 +24,11 @@ import {
 
 const topItems = [
   { href: "/",             label: "Dashboard",    icon: LayoutDashboard },
-  { href: "/animales",     label: "Animales",     icon: CowIcon         },
   { href: "/estadisticas", label: "Estadísticas", icon: BarChart3       },
 ];
 
 const moduleItems = [
+  { href: "/animales",     label: "Animales",     icon: CowIcon         },
   { href: "/alimentacion", label: "Alimentación", icon: Wheat          },
   { href: "/sanidad",      label: "Sanidad",      icon: Syringe        },
   { href: "/reproduccion", label: "Reproducción", icon: Heart          },
