@@ -35,6 +35,8 @@ const navItems = [
   { href: "/estadisticas",  label: "Estadísticas", icon: BarChart3       },
 ];
 
+const ADMIN_EMAIL = 'ezpeleta.juan@gmail.com';
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
@@ -156,6 +158,14 @@ export default function Sidebar({ drawerOpen = false, onClose }: SidebarProps) {
             )}
           </Link>
         ))}
+
+        {user?.email === ADMIN_EMAIL && (
+          <Link href="/usuarios" className={`sidebar-nav-item${isActive('/usuarios') ? " active" : ""}`}>
+            <BarChart3 size={17} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>Usuarios</span>
+            {isActive('/usuarios') && <ChevronRight size={14} style={{ opacity: 0.5 }} />}
+          </Link>
+        )}
       </nav>
 
       {/* Footer — user + logout */}
