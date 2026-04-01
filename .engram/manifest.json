@@ -40,6 +40,14 @@
       "sessions": 1,
       "memories": 4,
       "prompts": 0
+    },
+    {
+      "id": "2bff7363",
+      "created_by": "Juan",
+      "created_at": "2026-04-01T17:40:28Z",
+      "sessions": 0,
+      "memories": 7,
+      "prompts": 0
     }
   ]
 }
