@@ -697,27 +697,27 @@ export async function getHistorialPorLote(lote: string): Promise<{ animales: Ani
 
   const eventos: HistorialEntry[] = [];
 
-  for (const p of (pesosRes.data ?? []) as (PesoRow & { animales?: { identificador: string } })[]) {
+  for (const p of (pesosRes.data ?? []) as unknown as (PesoRow & { animales?: { identificador: string } })[]) {
     const id_label = p.animales?.identificador ?? p.animal_id;
     eventos.push({ id: p.id, fecha: p.fecha, tipo: "peso", titulo: `Pesaje — Animal ${id_label}`, detalle: `${p.peso} kg`, origen_tabla: "pesos", origen_id: p.id });
   }
 
-  for (const s of (sanidadRes.data ?? []) as (SanidadRow & { animales?: { identificador: string } })[]) {
+  for (const s of (sanidadRes.data ?? []) as unknown as (SanidadRow & { animales?: { identificador: string } })[]) {
     const id_label = s.animales?.identificador ?? s.animal_id ?? "lote";
     eventos.push({ id: s.id, fecha: s.fecha, tipo: "sanidad", titulo: `${s.tipo} — Animal ${id_label}`, detalle: s.tratamiento + (s.producto ? ` · ${s.producto}` : ""), origen_tabla: "sanidad", origen_id: s.id });
   }
 
-  for (const r of (reproRes.data ?? []) as (ReproduccionRow & { animales?: { identificador: string } })[]) {
+  for (const r of (reproRes.data ?? []) as unknown as (ReproduccionRow & { animales?: { identificador: string } })[]) {
     const id_label = r.animales?.identificador ?? r.animal_id ?? "lote";
     eventos.push({ id: r.id, fecha: r.fecha_servicio, tipo: "reproduccion", titulo: `Servicio ${r.tipo_servicio} — Animal ${id_label}`, detalle: r.macho ? `Macho: ${r.macho}` : "", origen_tabla: "reproduccion", origen_id: r.id });
   }
 
-  for (const f of (faenaRes.data ?? []) as (FaenaRow & { animales?: { identificador: string } })[]) {
+  for (const f of (faenaRes.data ?? []) as unknown as (FaenaRow & { animales?: { identificador: string } })[]) {
     const id_label = f.animales?.identificador ?? f.animal_id ?? "lote";
     eventos.push({ id: f.id, fecha: f.fecha, tipo: "faena", titulo: `Faena — Animal ${id_label}`, detalle: `Peso vivo: ${f.peso_vivo} kg · Canal: ${f.peso_canal} kg`, origen_tabla: "faena", origen_id: f.id });
   }
 
-  for (const m of (movimientosRes.data ?? []) as (MovimientoRow & { animales?: { identificador: string } })[]) {
+  for (const m of (movimientosRes.data ?? []) as unknown as (MovimientoRow & { animales?: { identificador: string } })[]) {
     const id_label = m.animales?.identificador ?? m.animal_id ?? "lote";
     eventos.push({ id: m.id, fecha: m.fecha, tipo: "movimiento", titulo: `${m.tipo} — Animal ${id_label}`, detalle: (m.motivo ?? "") + (m.destino ? ` · ${m.destino}` : ""), origen_tabla: "movimientos", origen_id: m.id });
   }
