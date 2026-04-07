@@ -88,6 +88,7 @@ export default function SanidadPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SanidadRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [repeatBase, setRepeatBase] = useState<SanidadRow | null>(null);
 
   const [filterEspecie, setFilterEspecie] = useState("");
   const [filterAnimal, setFilterAnimal] = useState("");
