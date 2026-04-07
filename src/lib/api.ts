@@ -540,7 +540,7 @@ export async function getHistorialAnimal(animalId: string): Promise<HistorialAni
   }
 
   // Eventos de sanidad + sus seguimientos
-  for (const s of (sanidadRes.data ?? []) as (SanidadRow & { seguimiento_tratamiento?: SeguimientoRow[] })[]) {
+  for (const s of (sanidadRes.data ?? []) as unknown as (SanidadRow & { seguimiento_tratamiento?: SeguimientoRow[] })[]) {
     eventos.push({
       id: s.id,
       fecha: s.fecha,
