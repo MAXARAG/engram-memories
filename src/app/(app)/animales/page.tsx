@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Filter, X, PackageOpen, Search, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Filter, X, PackageOpen, Search, ChevronDown, ClipboardList } from "lucide-react";
 import type { AnimalRow } from "@/types/database";
 import { AnimalModal } from "@/components/animales/AnimalModal";
 import { RowActions } from "@/components/common/RowActions";
@@ -39,6 +40,7 @@ function SkeletonCard() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AnimalesPage() {
+  const router = useRouter();
   const [animales, setAnimales] = useState<AnimalRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export default function AnimalesPage() {
     return animales.filter((a) => {
       if (filterEspecie && a.especie !== filterEspecie) return false;
       if (filterEstado && a.estado !== filterEstado) return false;
-      if (q && !a.identificador.toLowerCase().includes(q) && !a.categoria.toLowerCase().includes(q) && !(a.raza ?? "").toLowerCase().includes(q) && !(a.ubicacion ?? "").toLowerCase().includes(q)) return false;
+      if (q && !a.identificador.toLowerCase().includes(q) && !a.categoria.toLowerCase().includes(q) && !(a.raza ?? "").toLowerCase().includes(q) && !(a.lote ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
   }, [animales, filterEspecie, filterEstado, search]);
@@ -250,11 +252,20 @@ export default function AnimalesPage() {
                       <span className="record-card-value">{a.origen}</span>
                     </div>
                     <div className="record-card-field">
-                      <span className="record-card-label">Ubicación</span>
-                      <span className="record-card-value">{a.ubicacion || "—"}</span>
+                      <span className="record-card-label">Lote</span>
+                      <span className="record-card-value">{a.lote || "—"}</span>
                     </div>
                   </div>
-                  <div className="record-card-actions">
+                  <div className="record-card-actions" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ fontSize: "0.8rem", color: "var(--color-primary)", padding: "0.25rem 0.5rem", gap: "0.35rem" }}
+                      onClick={() => router.push(`/historial?animal=${a.id}`)}
+                      title="Ver historial del animal"
+                    >
+                      <ClipboardList size={14} />
+                      Historial
+                    </button>
                     <RowActions onEdit={() => openEditModal(a)} onDelete={() => handleDelete(a)} deleting={deletingId === a.id} />
                   </div>
                 </div>

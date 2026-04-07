@@ -5,7 +5,7 @@ import {
   Syringe, Plus, Filter, X, AlertTriangle, CheckCircle2, PackageOpen,
   ShieldAlert, CalendarDays, ChevronDown, Clock,
 } from "lucide-react";
-import type { AnimalRow, SanidadRow } from "@/types/database";
+import type { AnimalRow, SanidadRow, SeguimientoRow } from "@/types/database";
 import { SanidadModal } from "@/components/sanidad/SanidadModal";
 import { RowActions } from "@/components/common/RowActions";
 import { buildAnimalMap, getAnimalDisplayId } from "@/lib/animalReferences";
@@ -150,6 +150,7 @@ export default function SanidadPage() {
       return prev.map((item) => (item.id === record.id ? record : item));
     });
     setSelectedRecord(null);
+    setRepeatBase(null);
     setShowModal(false);
   }
 
@@ -196,49 +197,6 @@ export default function SanidadPage() {
             </button>
           </div>
         </div>
-
-        {/* Alertas de retiro */}
-        {!loading && !error && (
-          <section className="animate-fade-in" style={{ marginBottom: "2rem" }}>
-            <div style={{ background: enRetiro.length > 0 ? "linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%)" : "linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%)", borderRadius: "var(--radius-xl) var(--radius-xl) 0 0", padding: "1rem 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <div style={{ background: "rgba(255,255,255,0.18)", borderRadius: "var(--radius-md)", padding: "0.5rem", display: "flex" }}>
-                  {enRetiro.length > 0 ? <ShieldAlert size={22} color="#fff" /> : <CheckCircle2 size={22} color="#fff" />}
-                </div>
-                <div>
-                  <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 700, color: "#fff", marginBottom: "2px" }}>Alertas de Período de Retiro</h2>
-                  <p style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.72)" }}>Animales que NO pueden ser faenados</p>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "rgba(255,255,255,0.18)", borderRadius: "var(--radius-lg)", padding: "0.5rem 1rem", flexShrink: 0 }}>
-                <span style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{enRetiro.length}</span>
-                <div>
-                  <p style={{ fontSize: "0.7rem", fontWeight: 700, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", lineHeight: 1.1 }}>{enRetiro.length === 1 ? "animal" : "animales"}</p>
-                  <p style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.65)", lineHeight: 1.1 }}>en retiro</p>
-                </div>
-              </div>
-            </div>
-            <div style={{ background: enRetiro.length > 0 ? "#fffbeb" : "var(--color-bg-card)", borderTop: "none", borderRight: enRetiro.length > 0 ? "1.5px solid #fde68a" : "1.5px solid var(--color-border)", borderBottom: enRetiro.length > 0 ? "1.5px solid #fde68a" : "1.5px solid var(--color-border)", borderLeft: enRetiro.length > 0 ? "1.5px solid #fde68a" : "1.5px solid var(--color-border)", borderRadius: "0 0 var(--radius-xl) var(--radius-xl)", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {enRetiro.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.75rem 0" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <CheckCircle2 size={24} color="#16a34a" />
-                  </div>
-                  <div>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 600, color: "var(--color-primary-dark)", marginBottom: "2px" }}>Sin animales en período de retiro</p>
-                    <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>Todos habilitados para faena.</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "0.75rem" }}>
-                  {enRetiro.map(({ registro, restantes }) => (
-                    <AlertaCard key={registro.id ?? `${registro.animal_id}-${registro.fecha}`} animalLabel={getAnimalDisplayId(animalMap, registro.animal_id)} registro={registro} restantes={restantes} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
 
         {/* Error */}
         {error && (
@@ -352,8 +310,14 @@ export default function SanidadPage() {
                         <span className="record-card-label">Retiro</span>
                         <span className="record-card-value">{r.dias_retiro > 0 ? `${r.dias_retiro} días` : "—"}</span>
                       </div>
+                      {r.proxima_fecha && (
+                        <div className="record-card-field">
+                          <span className="record-card-label">Próxima dosis</span>
+                          <span className="record-card-value" style={{ color: "#2563eb", fontWeight: 600 }}>{formatDate(r.proxima_fecha)}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="record-card-actions">
+                    <div className="record-card-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: "0.375rem" }}>
                       <RowActions onEdit={() => openEditModal(r)} onDelete={() => handleDelete(r)} deleting={deletingId === r.id} />
                     </div>
                   </div>

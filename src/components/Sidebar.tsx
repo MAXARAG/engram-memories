@@ -18,6 +18,7 @@ import {
   ChevronRight,
   X,
   BarChart3,
+  ClipboardList,
 } from "lucide-react";
 
 // ─── Nav Items ─────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ const moduleItems = [
   { href: "/faena",        label: "Faena",        icon: Scissors       },
   { href: "/movimientos",  label: "Movimientos",  icon: ArrowLeftRight },
   { href: "/costos",       label: "Costos",       icon: DollarSign     },
+  { href: "/historial",    label: "Historial",    icon: ClipboardList  },
 ];
 
 const ADMIN_EMAIL = 'ezpeleta.juan@gmail.com';

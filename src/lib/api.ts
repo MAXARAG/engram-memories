@@ -20,6 +20,12 @@ import type {
   StockAlimentoRow,
   StockAlimentoInsert,
   StockAlimentoUpdate,
+  PesoRow,
+  PesoInsert,
+  SeguimientoRow,
+  SeguimientoInsert,
+  HistorialEntry,
+  HistorialAnimal,
   Stats,
   DashboardAlert,
   DashboardDetails,
@@ -428,6 +434,299 @@ export async function deleteStockAlimento(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// ─── Seguimiento Tratamiento ──────────────────────────────────────────────────
+
+export async function getSeguimientos(sanidadId: string): Promise<SeguimientoRow[]> {
+  const { data, error } = await supabase
+    .from("seguimiento_tratamiento")
+    .select("*")
+    .eq("sanidad_id", sanidadId)
+    .order("fecha", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as SeguimientoRow[];
+}
+
+export async function addSeguimiento(payload: SeguimientoInsert): Promise<SeguimientoRow> {
+  const { data, error } = await supabase
+    .from("seguimiento_tratamiento")
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as SeguimientoRow;
+}
+
+export async function deleteSeguimiento(id: string): Promise<void> {
+  const { error } = await supabase.from("seguimiento_tratamiento").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ─── Pesos ────────────────────────────────────────────────────────────────────
+
+export async function getPesos(animalId: string): Promise<PesoRow[]> {
+  const { data, error } = await supabase
+    .from("pesos")
+    .select("*")
+    .eq("animal_id", animalId)
+    .order("fecha", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as PesoRow[];
+}
+
+export async function getUltimoPeso(animalId: string): Promise<PesoRow | null> {
+  const { data, error } = await supabase
+    .from("pesos")
+    .select("*")
+    .eq("animal_id", animalId)
+    .order("fecha", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as PesoRow | null;
+}
+
+export async function addPeso(payload: PesoInsert): Promise<PesoRow> {
+  const { data, error } = await supabase
+    .from("pesos")
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as PesoRow;
+}
+
+export async function deletePeso(id: string): Promise<void> {
+  const { error } = await supabase.from("pesos").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ─── Historial Animal ─────────────────────────────────────────────────────────
+
+export async function getHistorialAnimal(animalId: string): Promise<HistorialAnimal> {
+  // Traer datos del animal
+  const animal = await getAnimal(animalId);
+
+  // Traer todos los datos en paralelo
+  const [pesosRes, sanidadRes, reproRes, desteteRes, faenaRes, movimientosRes] = await Promise.all([
+    supabase.from("pesos").select("*").eq("animal_id", animalId).order("fecha", { ascending: false }),
+    supabase.from("sanidad").select("*, seguimiento_tratamiento(*)").eq("animal_id", animalId).order("fecha", { ascending: false }),
+    supabase.from("reproduccion").select("*").eq("animal_id", animalId).order("fecha_servicio", { ascending: false }),
+    supabase.from("destete").select("*").or(`cria_id.eq.${animalId},madre_id.eq.${animalId}`).order("fecha", { ascending: false }),
+    supabase.from("faena").select("*").eq("animal_id", animalId).order("fecha", { ascending: false }),
+    supabase.from("movimientos").select("*").eq("animal_id", animalId).order("fecha", { ascending: false }),
+  ]);
+
+  const pesos = (pesosRes.data ?? []) as PesoRow[];
+  const eventos: HistorialEntry[] = [];
+
+  // Eventos de peso
+  for (const p of pesos) {
+    eventos.push({
+      id: p.id,
+      fecha: p.fecha,
+      tipo: "peso",
+      titulo: "Pesaje registrado",
+      detalle: `${p.peso} kg`,
+      datos: {
+        peso: p.peso,
+        observaciones: p.observaciones ?? null,
+      },
+      origen_tabla: "pesos",
+      origen_id: p.id,
+    });
+  }
+
+  // Eventos de sanidad + sus seguimientos
+  for (const s of (sanidadRes.data ?? []) as (SanidadRow & { seguimiento_tratamiento?: SeguimientoRow[] })[]) {
+    eventos.push({
+      id: s.id,
+      fecha: s.fecha,
+      tipo: "sanidad",
+      titulo: `${s.tipo}: ${s.tratamiento}`,
+      detalle: (s.producto ? `${s.producto}` : "") + (s.dosis ? ` · ${s.dosis}` : "") + (s.responsable ? ` · Dr. ${s.responsable}` : ""),
+      datos: {
+        tipo: s.tipo,
+        producto: s.producto ?? null,
+        dosis: s.dosis ?? null,
+        dias_retiro: s.dias_retiro,
+        responsable: s.responsable ?? null,
+        ...(s.temperatura != null ? { temperatura: `${s.temperatura} °C` } : {}),
+        ...(s.peso_durante != null ? { peso_durante: `${s.peso_durante} kg` } : {}),
+        ...(s.estado_tratamiento ? { estado: s.estado_tratamiento } : {}),
+        ...(s.observaciones ? { observaciones: s.observaciones } : {}),
+        ...(s.proxima_fecha ? { proxima_dosis: s.proxima_fecha } : {}),
+      },
+      origen_tabla: "sanidad",
+      origen_id: s.id,
+    });
+
+    // Seguimientos del tratamiento como eventos separados
+    for (const seg of (s.seguimiento_tratamiento ?? [])) {
+      eventos.push({
+        id: seg.id,
+        fecha: seg.fecha,
+        tipo: "sanidad",
+        titulo: `Seguimiento: ${s.tratamiento}`,
+        detalle: `Estado: ${seg.estado}` + (seg.temperatura != null ? ` · Temp: ${seg.temperatura}°C` : "") + (seg.peso != null ? ` · Peso: ${seg.peso}kg` : ""),
+        datos: {
+          estado: seg.estado,
+          ...(seg.temperatura != null ? { temperatura: `${seg.temperatura} °C` } : {}),
+          ...(seg.peso != null ? { peso: `${seg.peso} kg` } : {}),
+          ...(seg.observaciones ? { observaciones: seg.observaciones } : {}),
+        },
+        origen_tabla: "seguimiento_tratamiento",
+        origen_id: seg.id,
+      });
+    }
+  }
+
+  // Eventos de reproduccion
+  for (const r of (reproRes.data ?? []) as ReproduccionRow[]) {
+    eventos.push({
+      id: r.id,
+      fecha: r.fecha_servicio,
+      tipo: "reproduccion",
+      titulo: `Servicio ${r.tipo_servicio}`,
+      detalle: (r.macho ? `Macho: ${r.macho}` : "") + (r.fecha_parto ? ` · Parto esperado: ${r.fecha_parto}` : "") + (r.diagnostico ? ` · ${r.diagnostico}` : ""),
+      datos: {
+        tipo_servicio: r.tipo_servicio,
+        macho: r.macho ?? null,
+        fecha_parto: r.fecha_parto ?? null,
+        n_crias: r.n_crias,
+        diagnostico: r.diagnostico ?? null,
+      },
+      origen_tabla: "reproduccion",
+      origen_id: r.id,
+    });
+  }
+
+  // Eventos de destete
+  for (const d of (desteteRes.data ?? []) as DesteteRow[]) {
+    const rol = d.cria_id === animalId ? "cría" : "madre";
+    eventos.push({
+      id: d.id,
+      fecha: d.fecha,
+      tipo: "destete",
+      titulo: `Destete (como ${rol})`,
+      detalle: `${d.n_crias} cría${d.n_crias !== 1 ? "s" : ""} · Peso promedio: ${d.peso_promedio} kg · Destino: ${d.destino}`,
+      datos: {
+        n_crias: d.n_crias,
+        peso_total: d.peso_total,
+        peso_promedio: d.peso_promedio,
+        destino: d.destino,
+      },
+      origen_tabla: "destete",
+      origen_id: d.id,
+    });
+  }
+
+  // Eventos de faena
+  for (const f of (faenaRes.data ?? []) as FaenaRow[]) {
+    eventos.push({
+      id: f.id,
+      fecha: f.fecha,
+      tipo: "faena",
+      titulo: "Faena",
+      detalle: `Peso vivo: ${f.peso_vivo} kg · Peso canal: ${f.peso_canal} kg` + (f.rendimiento ? ` · Rendimiento: ${f.rendimiento}%` : ""),
+      datos: {
+        peso_vivo: f.peso_vivo,
+        peso_canal: f.peso_canal,
+        rendimiento: f.rendimiento ?? null,
+        observaciones: f.observaciones ?? null,
+      },
+      origen_tabla: "faena",
+      origen_id: f.id,
+    });
+  }
+
+  // Eventos de movimientos
+  for (const m of (movimientosRes.data ?? []) as MovimientoRow[]) {
+    eventos.push({
+      id: m.id,
+      fecha: m.fecha,
+      tipo: "movimiento",
+      titulo: `Movimiento: ${m.tipo}`,
+      detalle: (m.motivo ? m.motivo : "") + (m.destino ? ` · Destino: ${m.destino}` : "") + (m.observaciones ? ` · ${m.observaciones}` : ""),
+      datos: {
+        tipo: m.tipo,
+        motivo: m.motivo ?? null,
+        destino: m.destino ?? null,
+      },
+      origen_tabla: "movimientos",
+      origen_id: m.id,
+    });
+  }
+
+  // Ordenar todos los eventos por fecha descendente
+  eventos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  return {
+    animal,
+    ultimoPeso: pesos[0] ?? null,
+    historialPesos: pesos,
+    eventos,
+  };
+}
+
+export async function getHistorialPorLote(lote: string): Promise<{ animales: AnimalRow[]; eventos: HistorialEntry[] }> {
+  // Buscar todos los animales del lote
+  const { data: animalesData, error: animalesError } = await supabase
+    .from("animales")
+    .select("*")
+    .eq("lote", lote)
+    .order("identificador");
+
+  if (animalesError) throw animalesError;
+  const animales = (animalesData ?? []) as AnimalRow[];
+
+  if (animales.length === 0) return { animales: [], eventos: [] };
+
+  const ids = animales.map((a) => a.id);
+
+  // Traer todos los eventos de todos los animales del lote
+  const [pesosRes, sanidadRes, reproRes, faenaRes, movimientosRes] = await Promise.all([
+    supabase.from("pesos").select("*, animales(identificador)").in("animal_id", ids).order("fecha", { ascending: false }),
+    supabase.from("sanidad").select("*, animales(identificador)").in("animal_id", ids).order("fecha", { ascending: false }),
+    supabase.from("reproduccion").select("*, animales(identificador)").in("animal_id", ids).order("fecha_servicio", { ascending: false }),
+    supabase.from("faena").select("*, animales(identificador)").in("animal_id", ids).order("fecha", { ascending: false }),
+    supabase.from("movimientos").select("*, animales(identificador)").in("animal_id", ids).order("fecha", { ascending: false }),
+  ]);
+
+  const eventos: HistorialEntry[] = [];
+
+  for (const p of (pesosRes.data ?? []) as (PesoRow & { animales?: { identificador: string } })[]) {
+    const id_label = p.animales?.identificador ?? p.animal_id;
+    eventos.push({ id: p.id, fecha: p.fecha, tipo: "peso", titulo: `Pesaje — Animal ${id_label}`, detalle: `${p.peso} kg`, origen_tabla: "pesos", origen_id: p.id });
+  }
+
+  for (const s of (sanidadRes.data ?? []) as (SanidadRow & { animales?: { identificador: string } })[]) {
+    const id_label = s.animales?.identificador ?? s.animal_id ?? "lote";
+    eventos.push({ id: s.id, fecha: s.fecha, tipo: "sanidad", titulo: `${s.tipo} — Animal ${id_label}`, detalle: s.tratamiento + (s.producto ? ` · ${s.producto}` : ""), origen_tabla: "sanidad", origen_id: s.id });
+  }
+
+  for (const r of (reproRes.data ?? []) as (ReproduccionRow & { animales?: { identificador: string } })[]) {
+    const id_label = r.animales?.identificador ?? r.animal_id ?? "lote";
+    eventos.push({ id: r.id, fecha: r.fecha_servicio, tipo: "reproduccion", titulo: `Servicio ${r.tipo_servicio} — Animal ${id_label}`, detalle: r.macho ? `Macho: ${r.macho}` : "", origen_tabla: "reproduccion", origen_id: r.id });
+  }
+
+  for (const f of (faenaRes.data ?? []) as (FaenaRow & { animales?: { identificador: string } })[]) {
+    const id_label = f.animales?.identificador ?? f.animal_id ?? "lote";
+    eventos.push({ id: f.id, fecha: f.fecha, tipo: "faena", titulo: `Faena — Animal ${id_label}`, detalle: `Peso vivo: ${f.peso_vivo} kg · Canal: ${f.peso_canal} kg`, origen_tabla: "faena", origen_id: f.id });
+  }
+
+  for (const m of (movimientosRes.data ?? []) as (MovimientoRow & { animales?: { identificador: string } })[]) {
+    const id_label = m.animales?.identificador ?? m.animal_id ?? "lote";
+    eventos.push({ id: m.id, fecha: m.fecha, tipo: "movimiento", titulo: `${m.tipo} — Animal ${id_label}`, detalle: (m.motivo ?? "") + (m.destino ? ` · ${m.destino}` : ""), origen_tabla: "movimientos", origen_id: m.id });
+  }
+
+  eventos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  return { animales, eventos };
+}
+
 // ─── Stats (calculado en cliente para evitar RPC/views) ───────────────────────
 
 export async function getStats(): Promise<Stats> {
@@ -533,7 +832,7 @@ export async function getDashboardDetails(): Promise<DashboardDetails> {
   const hoyStr   = hoy.toISOString().split("T")[0];
 
   const [sanidadRes, reproRes, alimentRes, costosRes, desteteRes, faenaRes] = await Promise.all([
-    supabase.from("sanidad").select("id, fecha, especie, tratamiento, tipo, dias_retiro").gt("dias_retiro", 0),
+    supabase.from("sanidad").select("id, fecha, especie, tratamiento, tipo, dias_retiro, proxima_fecha"),
     supabase.from("reproduccion").select("id, especie, fecha_parto").not("fecha_parto", "is", null).gte("fecha_parto", hoyStr),
     supabase.from("alimentacion").select("id, fecha, especie, racion, total_kg").gte("fecha", hace7str).order("fecha", { ascending: false }).limit(6),
     supabase.from("costos").select("id, fecha, categoria, concepto, monto").gte("fecha", hace7str).order("fecha", { ascending: false }).limit(6),
@@ -580,6 +879,25 @@ export async function getDashboardDetails(): Promise<DashboardDetails> {
         detail: r.especie,
         daysLeft,
         href: "/reproduccion",
+      });
+    }
+  }
+
+  // Alertas de tratamientos pendientes (proxima_fecha)
+  for (const s of sanidadRes.data ?? []) {
+    if (!s.proxima_fecha) continue;
+    const fp = new Date(s.proxima_fecha + "T12:00:00");
+    fp.setHours(0, 0, 0, 0);
+    const daysLeft = Math.round((fp.getTime() - hoy.getTime()) / 86_400_000);
+
+    if (daysLeft >= 0 && daysLeft <= 14) {
+      alerts.push({
+        type: "tratamiento_pendiente",
+        urgency: daysLeft === 0 ? "critical" : daysLeft <= 3 ? "warning" : "info",
+        title: daysLeft === 0 ? "Tratamiento pendiente HOY" : `Tratamiento en ${daysLeft} día${daysLeft !== 1 ? "s" : ""}`,
+        detail: `${s.especie} — ${s.tratamiento}`,
+        daysLeft,
+        href: "/sanidad",
       });
     }
   }

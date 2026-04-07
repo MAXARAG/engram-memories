@@ -1,5 +1,15 @@
 // ─── Enum types ──────────────────────────────────────────────────────────────
 
+export type TipoEventoHistorial =
+  | "peso"
+  | "sanidad"
+  | "alimentacion"
+  | "reproduccion"
+  | "destete"
+  | "faena"
+  | "movimiento"
+  | "cambio_datos";
+
 export type AnimalEstado = "Activo" | "Vendido" | "Muerto" | "Faenado";
 export type AnimalOrigen = "Nacido" | "Comprado";
 export type TipoServicio = "Natural" | "Inseminación";
@@ -27,7 +37,7 @@ export type Database = {
           fecha_nac: string | null;
           estado: AnimalEstado;
           sistema: string | null;
-          ubicacion: string | null;
+          lote: string | null;
           origen: AnimalOrigen;
           created_at: string;
           updated_at: string;
@@ -42,7 +52,7 @@ export type Database = {
           fecha_nac?: string | null;
           estado?: AnimalEstado;
           sistema?: string | null;
-          ubicacion?: string | null;
+          lote?: string | null;
           origen?: AnimalOrigen;
           created_at?: string;
           updated_at?: string;
@@ -57,7 +67,7 @@ export type Database = {
           fecha_nac?: string | null;
           estado?: AnimalEstado;
           sistema?: string | null;
-          ubicacion?: string | null;
+          lote?: string | null;
           origen?: AnimalOrigen;
           created_at?: string;
           updated_at?: string;
@@ -118,6 +128,14 @@ export type Database = {
           tipo: TipoSanidad;
           dias_retiro: number;
           responsable: string | null;
+          // Seguimiento del animal
+          observaciones: string | null;
+          temperatura: number | null;
+          peso_durante: number | null;
+          estado_tratamiento: string | null;
+          // Repetición
+          proxima_fecha: string | null;
+          frecuencia_dias: number | null;
           created_at: string;
         };
         Insert: {
@@ -131,6 +149,12 @@ export type Database = {
           tipo?: TipoSanidad;
           dias_retiro?: number;
           responsable?: string | null;
+          observaciones?: string | null;
+          temperatura?: number | null;
+          peso_durante?: number | null;
+          estado_tratamiento?: string | null;
+          proxima_fecha?: string | null;
+          frecuencia_dias?: number | null;
           created_at?: string;
         };
         Update: {
@@ -144,6 +168,12 @@ export type Database = {
           tipo?: TipoSanidad;
           dias_retiro?: number;
           responsable?: string | null;
+          observaciones?: string | null;
+          temperatura?: number | null;
+          peso_durante?: number | null;
+          estado_tratamiento?: string | null;
+          proxima_fecha?: string | null;
+          frecuencia_dias?: number | null;
           created_at?: string;
         };
         Relationships: [];
@@ -326,6 +356,66 @@ export type Database = {
         };
         Relationships: [];
       };
+      seguimiento_tratamiento: {
+        Row: {
+          id: string;
+          sanidad_id: string;
+          fecha: string;
+          temperatura: number | null;
+          peso: number | null;
+          estado: string;
+          observaciones: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          sanidad_id: string;
+          fecha: string;
+          temperatura?: number | null;
+          peso?: number | null;
+          estado?: string;
+          observaciones?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          sanidad_id?: string;
+          fecha?: string;
+          temperatura?: number | null;
+          peso?: number | null;
+          estado?: string;
+          observaciones?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      pesos: {
+        Row: {
+          id: string;
+          animal_id: string;
+          fecha: string;
+          peso: number;
+          observaciones: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          animal_id: string;
+          fecha: string;
+          peso: number;
+          observaciones?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          animal_id?: string;
+          fecha?: string;
+          peso?: number;
+          observaciones?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       stock_alimento: {
         Row: {
           id: string;
@@ -422,6 +512,14 @@ export type StockAlimentoRow = Database["public"]["Tables"]["stock_alimento"]["R
 export type StockAlimentoInsert = Database["public"]["Tables"]["stock_alimento"]["Insert"];
 export type StockAlimentoUpdate = Database["public"]["Tables"]["stock_alimento"]["Update"];
 
+export type SeguimientoRow    = Database["public"]["Tables"]["seguimiento_tratamiento"]["Row"];
+export type SeguimientoInsert = Database["public"]["Tables"]["seguimiento_tratamiento"]["Insert"];
+export type SeguimientoUpdate = Database["public"]["Tables"]["seguimiento_tratamiento"]["Update"];
+
+export type PesoRow = Database["public"]["Tables"]["pesos"]["Row"];
+export type PesoInsert = Database["public"]["Tables"]["pesos"]["Insert"];
+export type PesoUpdate = Database["public"]["Tables"]["pesos"]["Update"];
+
 // ─── Stats (calculado en cliente, no tabla) ───────────────────────────────────
 
 export interface StatsEspecie {
@@ -451,7 +549,7 @@ export interface Stats {
 // ─── Dashboard daily briefing ─────────────────────────────────────────────────
 
 export interface DashboardAlert {
-  type: "retiro_termina" | "retiro_activo" | "parto_proximo";
+  type: "retiro_termina" | "retiro_activo" | "parto_proximo" | "tratamiento_pendiente";
   urgency: "critical" | "warning" | "info";
   title: string;
   detail: string;
@@ -473,5 +571,25 @@ export interface RecentEvent {
 export interface DashboardDetails {
   alerts: DashboardAlert[];
   recentEvents: RecentEvent[];
+}
+
+// ─── Historial de Animal ──────────────────────────────────────────────────────
+
+export interface HistorialEntry {
+  id: string;
+  fecha: string;
+  tipo: TipoEventoHistorial;
+  titulo: string;
+  detalle: string;
+  datos?: Record<string, string | number | null>;
+  origen_tabla: string;
+  origen_id: string;
+}
+
+export interface HistorialAnimal {
+  animal: AnimalRow;
+  ultimoPeso: PesoRow | null;
+  historialPesos: PesoRow[];
+  eventos: HistorialEntry[];
 }
 

@@ -71,8 +71,11 @@ const ALERT_STYLES = {
   info:     { bg: "#f0fdf4", border: "#86efac", text: "#166534", dot: "#22c55e" },
 };
 
+const ORANGE_STYLE = { bg: "#fff7ed", border: "#fed7aa", text: "#9a3412", dot: "#f97316" };
+
 function AlertCard({ alert }: { alert: DashboardDetails["alerts"][0] }) {
-  const s = ALERT_STYLES[alert.urgency];
+  const isTratamiento = alert.type === "tratamiento_pendiente";
+  const s = isTratamiento ? ORANGE_STYLE : ALERT_STYLES[alert.urgency];
   const isPartoIcon = alert.type === "parto_proximo";
   return (
     <Link href={alert.href} style={{ textDecoration: "none" }}>
@@ -245,7 +248,7 @@ export default function DashboardPage() {
           {/* ═══ KPIs principales ═══ */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.875rem", marginBottom: "1.75rem" }}>
             <KpiCard href="/animales"     title="Animales Activos" value={stats?.totalActivos ?? 0}     subtitle={`de ${stats?.totalAnimales ?? 0} totales`}       icon={CowIcon}  color="var(--color-primary)" delay={0}   />
-            <KpiCard href="/sanidad"      title="En Retiro"        value={stats?.animalesEnRetiro ?? 0}  subtitle={`${stats?.proximasVacunas ?? 0} vacunas próximas`} icon={Syringe}  color="#0891b2"              delay={60}  />
+            <KpiCard href="/sanidad"      title="En Tratamiento"        value={stats?.animalesEnRetiro ?? 0}  subtitle={`${stats?.proximasVacunas ?? 0} vacunas próximas`} icon={Syringe}  color="#0891b2"              delay={60}  />
             <KpiCard href="/reproduccion" title="Partos Próximos"  value={stats?.partosEsperados ?? 0}  subtitle="en los próximos 60 días"                          icon={CalfIcon} color="#7c3aed"              delay={120} />
           </div>
 
