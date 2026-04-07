@@ -17,9 +17,9 @@ const TIPO_OPTIONS: TipoSanidad[] = ["Vacuna", "Tratamiento", "Desparasitación"
 
 interface SanidadModalProps {
   animals: AnimalRow[];
-  initialData?: LinaresRow | null;
+  initialData?: SanidadRow | null;
   onClose: () => void;
-  onSaved: (record: LinaresRow) => void;
+  onSaved: (record: SanidadRow) => void;
 }
 
 interface FormState {
