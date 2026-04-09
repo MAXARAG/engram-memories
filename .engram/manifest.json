@@ -96,6 +96,14 @@
       "sessions": 6,
       "memories": 13,
       "prompts": 147
+    },
+    {
+      "id": "675771cd",
+      "created_by": "PC",
+      "created_at": "2026-04-09T02:51:16Z",
+      "sessions": 2,
+      "memories": 7,
+      "prompts": 53
     }
   ]
 }
